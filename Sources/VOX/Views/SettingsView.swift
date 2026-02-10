@@ -43,12 +43,10 @@ struct GeneralSettingsTab: View {
             }
 
             Section("Keyboard Shortcuts") {
-                HStack {
-                    Text("Push-to-talk")
-                    Spacer()
-                    Text("⌥Space")
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundColor(.secondary)
+                Picker("Push-to-talk", selection: $settings.pushToTalkHotkey) {
+                    ForEach(PushToTalkHotkey.allCases, id: \.self) { hotkey in
+                        Text(hotkey.displayName).tag(hotkey)
+                    }
                 }
                 HStack {
                     Text("Cycle verbosity")

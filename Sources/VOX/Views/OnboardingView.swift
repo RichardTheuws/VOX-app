@@ -15,6 +15,8 @@ struct OnboardingView: View {
     @State private var isTestListening = false
     @State private var testTranscription: String?
     @State private var voiceTestPassed = false
+    // Accessibility polling timer
+    @State private var accessibilityTimer: Timer?
 
     private let totalSteps = 6
 
@@ -118,13 +120,12 @@ struct OnboardingView: View {
                     .buttonStyle(.borderedProminent)
                     .tint(.accentBlue)
 
-                    Button("Check Again") {
-                        checkAccessibility()
+                    Button("Open System Settings") {
+                        openAccessibilitySettings()
                     }
-                    .buttonStyle(.borderless)
-                    .font(.caption)
+                    .buttonStyle(.bordered)
 
-                    Text("If the dialog didn't appear, open **System Settings → Privacy & Security → Accessibility** and add VOX manually.")
+                    Text("After enabling in System Settings, VOX will detect it automatically.\nNote: After each rebuild, you may need to re-grant access.")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -132,6 +133,8 @@ struct OnboardingView: View {
                 }
             }
         }
+        .onAppear { startAccessibilityPolling() }
+        .onDisappear { stopAccessibilityPolling() }
     }
 
     // MARK: - Step 2: Microphone
@@ -304,20 +307,38 @@ struct OnboardingView: View {
             Text("Step 6/\(totalSteps): Test Your Voice")
                 .font(.headline)
 
-            Text("Try speaking a command! Hold the button, say something, then release.")
+            // Hex status indicator
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(appState.hexBridge.isHexRunning ? Color.statusGreen : Color.statusOrange)
+                    .frame(width: 8, height: 8)
+                Text(appState.hexBridge.isHexRunning ? "Hex is running" : "Hex is not running")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                if !appState.hexBridge.isHexRunning {
+                    Button("Launch Hex") {
+                        appState.hexBridge.launchHex()
+                    }
+                    .font(.caption)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
+
+            Text("Use **Hex** to dictate something (Hex's own hotkey), then VOX will detect the transcription automatically.")
                 .multilineTextAlignment(.center)
                 .foregroundColor(.secondary)
                 .font(.callout)
 
-            // Push-to-talk test button
+            // Test listen button
             Button(action: {}) {
                 VStack(spacing: 8) {
-                    Image(systemName: isTestListening ? "mic.fill" : "mic")
+                    Image(systemName: isTestListening ? "ear.fill" : "ear")
                         .font(.system(size: 28))
-                    Text(isTestListening ? "Listening..." : "Hold to Talk")
+                    Text(isTestListening ? "Waiting for Hex..." : "Start Listening")
                         .font(.caption.bold())
                 }
-                .frame(width: 120, height: 80)
+                .frame(width: 160, height: 80)
                 .background(isTestListening ? Color.accentBlue : Color.secondary.opacity(0.2))
                 .foregroundColor(isTestListening ? .white : .primary)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -330,6 +351,12 @@ struct OnboardingView: View {
                     stopTestListening()
                 }
             }, perform: {})
+
+            if isTestListening {
+                Text("Now dictate with Hex, then release the button.")
+                    .font(.caption2)
+                    .foregroundColor(.accentBlue)
+            }
 
             // Transcription result
             if let transcription = testTranscription {
@@ -384,6 +411,13 @@ struct OnboardingView: View {
             .background(Color.secondary.opacity(0.1))
             .clipShape(RoundedRectangle(cornerRadius: 6))
         }
+        .onAppear {
+            appState.hexBridge.checkHexStatus()
+            // Auto-launch Hex if not running
+            if !appState.hexBridge.isHexRunning {
+                appState.hexBridge.launchHex()
+            }
+        }
     }
 
     // MARK: - Voice Test Helpers
@@ -409,11 +443,12 @@ struct OnboardingView: View {
             voiceTestPassed = true
             appState.ttsEngine.speak("I heard: \(transcription)")
         } else {
-            // No transcription received — let user know
+            // No transcription received — provide helpful guidance
+            appState.hexBridge.checkHexStatus()
             if !appState.hexBridge.isHexRunning {
-                appState.ttsEngine.speak("Hex is not running. Start Hex first to use voice input.")
+                appState.ttsEngine.speak("Hex is not running. Launch Hex and try again.")
             } else {
-                appState.ttsEngine.speak("I didn't catch that. Make sure Hex is running and try again.")
+                appState.ttsEngine.speak("No transcription received. Use Hex to dictate while holding the button, then release.")
             }
         }
     }
@@ -429,20 +464,26 @@ struct OnboardingView: View {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
         let trusted = AXIsProcessTrustedWithOptions(options)
         accessibilityGranted = trusted
-        // Re-check after a delay (user might need to toggle in System Settings)
-        Task {
-            try? await Task.sleep(for: .seconds(3))
-            accessibilityGranted = AXIsProcessTrusted()
-        }
     }
 
     private func openAccessibilitySettings() {
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
         NSWorkspace.shared.open(url)
-        Task {
-            try? await Task.sleep(for: .seconds(3))
-            checkAccessibility()
+    }
+
+    /// Poll accessibility status every 2 seconds while on step 0.
+    private func startAccessibilityPolling() {
+        stopAccessibilityPolling()
+        accessibilityTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
+            Task { @MainActor in
+                accessibilityGranted = AXIsProcessTrusted()
+            }
         }
+    }
+
+    private func stopAccessibilityPolling() {
+        accessibilityTimer?.invalidate()
+        accessibilityTimer = nil
     }
 
     private func checkMicAccess() {

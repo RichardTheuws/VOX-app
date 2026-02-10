@@ -5,6 +5,16 @@ All notable changes to VOX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.2] - 2026-02-10
+
+### Fixed
+- **Accessibility detection polling**: Onboarding now polls `AXIsProcessTrusted()` every 2 seconds on the accessibility step, auto-detecting when the user grants access in System Settings (no more manual "Check Again" needed).
+- **"Open System Settings" button**: Direct link to Privacy & Security → Accessibility, with note about re-granting after rebuilds.
+- **Voice test clarity**: Test step now shows Hex running status, auto-launches Hex if not running, and clearly explains the user must dictate with Hex's own hotkey. Changed icon from mic to ear ("Waiting for Hex...") to set correct expectations.
+- **Voice test error messages**: More helpful guidance when no transcription is received (distinguishes Hex not running vs. no dictation detected).
+- **Settings hotkey display**: Replaced hardcoded "⌥Space" with a Picker showing all 4 hotkey presets (Control+Space, Option+Space, ⌘⇧V, Fn+Space). Users can now change their push-to-talk hotkey from Settings.
+- **Live hotkey updates**: Changing the push-to-talk hotkey in Settings now applies immediately via `UserDefaults.didChangeNotification` observer — no restart required.
+
 ## [0.3.1] - 2026-02-10
 
 ### Added

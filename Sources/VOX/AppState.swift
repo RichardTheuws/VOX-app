@@ -34,6 +34,8 @@ final class AppState: ObservableObject {
     private var destructiveConfirmPanel: NSPanel?
 
     private var appModeObserver: AnyCancellable?
+    private var hotkeyObserver: AnyCancellable?
+    private var lastAppliedHotkey: PushToTalkHotkey = .controlSpace
 
     // MARK: - Init
 
@@ -58,6 +60,20 @@ final class AppState: ObservableObject {
             }
         }
 
+        // Observe hotkey changes from Settings and apply live
+        lastAppliedHotkey = settings.pushToTalkHotkey
+        hotkeyObserver = NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    guard let self = self else { return }
+                    let current = self.settings.pushToTalkHotkey
+                    if current != self.lastAppliedHotkey {
+                        self.lastAppliedHotkey = current
+                        self.hotkeyManager.updateHotkey(current)
+                    }
+                }
+            }
+
         // Auto-start if onboarding already completed
         if settings.hasCompletedOnboarding {
             start()
@@ -73,6 +89,7 @@ final class AppState: ObservableObject {
 
     func start() {
         // Register hotkeys with configured preset
+        lastAppliedHotkey = settings.pushToTalkHotkey
         hotkeyManager.register(
             hotkey: settings.pushToTalkHotkey,
             onPushToTalkStart: { [weak self] in
