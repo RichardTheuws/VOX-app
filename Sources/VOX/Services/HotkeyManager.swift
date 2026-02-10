@@ -7,6 +7,7 @@ import Carbon
 @MainActor
 final class HotkeyManager: ObservableObject {
     @Published var isListening = false
+    @Published var isHotkeyActive = false
 
     fileprivate var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -47,8 +48,9 @@ final class HotkeyManager: ObservableObject {
             callback: hotkeyCallback,
             userInfo: nil
         ) else {
-            // Fallback to NSEvent monitors if CGEventTap fails (no accessibility)
-            registerFallback()
+            // CGEventTap failed (no accessibility permission).
+            // Hotkey won't work, but VOX still works via Hex clipboard monitoring.
+            isHotkeyActive = false
             return
         }
 
@@ -58,6 +60,7 @@ final class HotkeyManager: ObservableObject {
             CFRunLoopAddSource(CFRunLoopGetCurrent(), source, .commonModes)
         }
         CGEvent.tapEnable(tap: tap, enable: true)
+        isHotkeyActive = true
     }
 
     func unregister() {

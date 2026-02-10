@@ -299,10 +299,9 @@ struct OnboardingView: View {
 
     private var voiceTestStep: some View {
         VStack(spacing: 16) {
-            Image(systemName: isTestListening ? "mic.fill.badge.waveform" : "mic.badge.waveform")
+            Image(systemName: voiceTestPassed ? "checkmark.circle.fill" : "ear.badge.waveform")
                 .font(.system(size: 48))
                 .foregroundColor(voiceTestPassed ? .statusGreen : .accentBlue)
-                .symbolEffect(.variableColor, isActive: isTestListening)
 
             Text("Step 6/\(totalSteps): Test Your Voice")
                 .font(.headline)
@@ -325,44 +324,61 @@ struct OnboardingView: View {
                 }
             }
 
-            Text("Use **Hex** to dictate something (Hex's own hotkey), then VOX will detect the transcription automatically.")
-                .multilineTextAlignment(.center)
-                .foregroundColor(.secondary)
-                .font(.callout)
+            if !voiceTestPassed {
+                VStack(spacing: 12) {
+                    Text("**How VOX works:**")
+                        .font(.callout)
 
-            // Test listen button
-            Button(action: {}) {
-                VStack(spacing: 8) {
-                    Image(systemName: isTestListening ? "ear.fill" : "ear")
-                        .font(.system(size: 28))
-                    Text(isTestListening ? "Waiting for Hex..." : "Start Listening")
-                        .font(.caption.bold())
-                }
-                .frame(width: 160, height: 80)
-                .background(isTestListening ? Color.accentBlue : Color.secondary.opacity(0.2))
-                .foregroundColor(isTestListening ? .white : .primary)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-            }
-            .buttonStyle(.plain)
-            .onLongPressGesture(minimumDuration: .infinity, pressing: { pressing in
-                if pressing {
-                    startTestListening()
-                } else {
-                    stopTestListening()
-                }
-            }, perform: {})
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(alignment: .top, spacing: 8) {
+                            Text("1.").font(.caption.bold()).foregroundColor(.accentBlue)
+                            Text("Use **Hex** to dictate a command (Hex's own hotkey)")
+                                .font(.caption)
+                        }
+                        HStack(alignment: .top, spacing: 8) {
+                            Text("2.").font(.caption.bold()).foregroundColor(.accentBlue)
+                            Text("VOX detects the transcription automatically")
+                                .font(.caption)
+                        }
+                        HStack(alignment: .top, spacing: 8) {
+                            Text("3.").font(.caption.bold()).foregroundColor(.accentBlue)
+                            Text("VOX executes the command and speaks the result")
+                                .font(.caption)
+                        }
+                    }
 
-            if isTestListening {
-                Text("Now dictate with Hex, then release the button.")
-                    .font(.caption2)
-                    .foregroundColor(.accentBlue)
+                    if isTestListening {
+                        VStack(spacing: 8) {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text("Waiting for Hex transcription...")
+                                .font(.caption)
+                                .foregroundColor(.accentBlue)
+                            Text("Dictate something with Hex now!")
+                                .font(.caption.bold())
+                        }
+                    } else {
+                        Button("Start Test") {
+                            startTestListening()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.accentBlue)
+                        .disabled(!appState.hexBridge.isHexRunning)
+
+                        if !appState.hexBridge.isHexRunning {
+                            Text("Launch Hex first to test voice input.")
+                                .font(.caption2)
+                                .foregroundColor(.statusOrange)
+                        }
+                    }
+                }
             }
 
             // Transcription result
             if let transcription = testTranscription {
                 VStack(spacing: 8) {
                     HStack {
-                        Text("You said:")
+                        Text("VOX heard:")
                             .font(.caption.bold())
                         Spacer()
                     }
@@ -381,15 +397,22 @@ struct OnboardingView: View {
                     .font(.headline)
             }
 
-            // Keyboard shortcuts summary
+            // How it works summary
             VStack(alignment: .leading, spacing: 4) {
                 Text("Your setup:")
                     .font(.caption.bold())
                 HStack(spacing: 4) {
+                    Text("Hex")
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundColor(.accentBlue)
+                    Text("Dictate → VOX auto-processes")
+                        .font(.caption)
+                }
+                HStack(spacing: 4) {
                     Text(selectedHotkey.shortLabel)
                         .font(.system(.caption, design: .monospaced))
                         .foregroundColor(.accentBlue)
-                    Text("Push-to-talk (hold & release)")
+                    Text("Push-to-talk (optional, needs Accessibility)")
                         .font(.caption)
                 }
                 HStack(spacing: 4) {
@@ -397,13 +420,6 @@ struct OnboardingView: View {
                         .font(.system(.caption, design: .monospaced))
                         .foregroundColor(.accentBlue)
                     Text("Cycle verbosity")
-                        .font(.caption)
-                }
-                HStack(spacing: 4) {
-                    Text("Escape")
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundColor(.accentBlue)
-                    Text("Cancel current action")
                         .font(.caption)
                 }
             }
@@ -430,25 +446,10 @@ struct OnboardingView: View {
         appState.hexBridge.startMonitoring { transcription in
             Task { @MainActor in
                 testTranscription = transcription
-            }
-        }
-    }
-
-    private func stopTestListening() {
-        isTestListening = false
-        appState.hexBridge.stopMonitoring()
-
-        if let transcription = testTranscription, !transcription.isEmpty {
-            // Speak back what was heard
-            voiceTestPassed = true
-            appState.ttsEngine.speak("I heard: \(transcription)")
-        } else {
-            // No transcription received — provide helpful guidance
-            appState.hexBridge.checkHexStatus()
-            if !appState.hexBridge.isHexRunning {
-                appState.ttsEngine.speak("Hex is not running. Launch Hex and try again.")
-            } else {
-                appState.ttsEngine.speak("No transcription received. Use Hex to dictate while holding the button, then release.")
+                isTestListening = false
+                voiceTestPassed = true
+                appState.hexBridge.stopMonitoring()
+                appState.ttsEngine.speak("I heard: \(transcription)")
             }
         }
     }

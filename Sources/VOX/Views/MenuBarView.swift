@@ -71,11 +71,29 @@ struct MenuBarView: View {
                 Divider()
             }
 
-            // Shortcuts info
+            // Mode info
             VStack(alignment: .leading, spacing: 2) {
-                shortcutRow(keys: "⌥Space", action: "Push-to-talk")
+                HStack {
+                    Circle()
+                        .fill(appState.hexBridge.isHexRunning ? Color.statusGreen : Color.secondary.opacity(0.3))
+                        .frame(width: 6, height: 6)
+                    Text(appState.hexBridge.isHexRunning ? "Monitoring Hex — dictate to execute" : "Start Hex to use voice commands")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                if appState.hotkeyManager.isHotkeyActive {
+                    shortcutRow(keys: appState.settings.pushToTalkHotkey.shortLabel, action: "Push-to-talk")
+                } else {
+                    HStack {
+                        Text(appState.settings.pushToTalkHotkey.shortLabel)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundColor(.secondary.opacity(0.5))
+                        Text("Push-to-talk (needs Accessibility)")
+                            .font(.caption)
+                            .foregroundColor(.statusOrange)
+                    }
+                }
                 shortcutRow(keys: "⌥V", action: "Cycle verbosity")
-                shortcutRow(keys: "Escape", action: "Cancel")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)

@@ -150,8 +150,19 @@ final class AppState: ObservableObject {
     }
 
     private func handleTranscription(_ text: String) {
-        guard appMode == .listening else { return }
         liveTranscription = text
+
+        if appMode == .listening {
+            // Push-to-talk mode: just store, will be processed on key release
+            return
+        }
+
+        if appMode == .idle {
+            // Auto-process mode: Hex transcription arrived while VOX is idle.
+            // Process it immediately as a command.
+            processTranscription(text)
+        }
+        // If processing or confirmingDestructive, ignore (busy)
     }
 
     /// Confirm and execute the pending destructive command.

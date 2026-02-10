@@ -5,6 +5,19 @@ All notable changes to VOX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-02-10
+
+### Changed
+- **Architecture: auto-process mode**: VOX now automatically processes any Hex transcription when idle — no push-to-talk hotkey required. Dictate with Hex's own hotkey, VOX detects the transcription and executes the command immediately.
+- **Push-to-talk is now optional**: The hotkey (Control+Space etc.) still works if Accessibility is granted, but VOX is fully functional without it. This eliminates the "accessibility not detected after rebuild" friction.
+- **Menu bar shows Hex monitoring status**: Green dot + "Monitoring Hex — dictate to execute" when Hex is running. Orange warning when push-to-talk hotkey needs Accessibility.
+- **Onboarding voice test simplified**: Replaced hold-to-talk button with simple "Start Test" that monitors for Hex transcription. Added 3-step "How VOX works" explanation. Push-to-talk shown as optional.
+- **HotkeyManager graceful degradation**: `isHotkeyActive` published property tracks whether CGEventTap succeeded. No more NSEvent fallback that didn't work anyway.
+
+### Removed
+- NSEvent global/local monitor fallback in HotkeyManager (was ineffective without Accessibility)
+- Hold-to-talk test button in onboarding (replaced with Hex monitoring test)
+
 ## [0.3.2] - 2026-02-10
 
 ### Fixed
