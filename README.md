@@ -21,22 +21,38 @@ VOX is an open-source macOS menu bar app that lets developers control their term
 - [Hex](https://hex.kitlangton.com/) for speech-to-text (recommended)
 - Xcode 16+ / Swift 6 (for building from source)
 
-## Build & Run
+## Install as macOS App
 
 ```bash
 # Clone the repository
 git clone https://github.com/RichardTheuws/VOX-app.git
 cd VOX-app
 
+# Build and install to /Applications
+./scripts/build-app.sh --install
+
+# Or build, install, and launch immediately
+./scripts/build-app.sh --install --open
+```
+
+After installation, VOX appears in Spotlight search and can be launched like any Mac app.
+
+## Build from Source
+
+```bash
 # Build from command line
 swift build
 
-# Run the app
+# Run directly
 .build/debug/VOX
 
 # Or build release
 swift build -c release
 .build/release/VOX
+
+# Build .app bundle (without installing)
+./scripts/build-app.sh
+# Output: build/VOX.app
 ```
 
 ## Run Tests
@@ -105,7 +121,7 @@ VOX (Menu Bar App)
 ## Roadmap
 
 - **v0.1** — Terminal + Claude Code CLI + macOS Say TTS + 90 tests
-- **v0.2** — Floating panels + Escape handler + dynamic version *(current)*
+- **v0.2** — Floating panels + Escape handler + app icon + .app bundle *(current)*
 - **v0.3** — Kokoro/Piper/ElevenLabs TTS + VS Code/Cursor/Windsurf
 - **v0.4** — Plugin system + Git/Docker voice commands
 - **v1.0** — Production ready + Homebrew install
@@ -131,4 +147,4 @@ MIT License — see [LICENSE](LICENSE)
 Part of the [tools.theuws.com](https://tools.theuws.com) ecosystem.
 
 ---
-Version 0.2.0
+Version 0.2.1

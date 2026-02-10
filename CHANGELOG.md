@@ -5,6 +5,16 @@ All notable changes to VOX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.1] - 2026-02-10
+
+### Added
+- App icon — custom VOX icon with microphone + waveform design in brand colors
+- Build script (`scripts/build-app.sh`) to create proper macOS .app bundle
+- Info.plist with bundle ID `com.theuws.vox`, microphone usage description, LSUIElement
+- App can now be launched from Finder, Spotlight, or /Applications
+- `--install` flag copies VOX.app to /Applications
+- `--open` flag launches app after build
+
 ## [0.2.0] - 2026-02-10
 
 ### Changed

@@ -18,7 +18,11 @@ DerivedData/
 .idea/
 .vscode/
 
-# Build artifacts
+# Build output
+build/
 *.o
 *.swp
 *~
+
+# Generated icon files (keep .icns, ignore iconset PNGs)
+Assets/AppIcon.iconset/
