@@ -5,6 +5,27 @@ All notable changes to VOX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.1] - 2026-02-10
+
+### Added
+- **CGEventTap hotkey interception**: Completely rewrote HotkeyManager to use CGEventTap instead of NSEvent monitors. Key events are now consumed (suppressed) at the OS level, preventing characters from leaking into foreground apps (fixes Option+Space typing spaces).
+- **Configurable hotkey presets**: 4 push-to-talk hotkey options — Control+Space (default), Option+Space, Command+Shift+V, Fn+Space. Configurable in onboarding and Settings.
+- **PushToTalkHotkey enum**: New model with CGEventFlags, key codes, display names, and short labels for each preset.
+- **Interactive voice test**: Step 6 of onboarding now includes a real hold-to-talk button that records via Hex, shows transcription, and speaks it back via TTS.
+- **Hotkey selection step**: Step 4 of onboarding lets users choose their preferred push-to-talk hotkey.
+- **NSEvent fallback**: If CGEventTap fails (no Accessibility permission), gracefully falls back to NSEvent global/local monitors.
+- **Comprehensive README**: Extensive documentation with architecture details, design decisions, hotkey presets, privacy section, and development setup.
+
+### Changed
+- Default push-to-talk hotkey changed from Option+Space to **Control+Space** (less likely to conflict with system shortcuts or IME)
+- Onboarding expanded from 5 to **6 steps** (added Hotkey Selection and Voice Test)
+- Accessibility detection now uses `AXIsProcessTrustedWithOptions` with prompt trigger (properly shows macOS permission dialog)
+- `MainActor.assumeIsolated` used in CGEventTap C callback for Swift 6 strict concurrency compliance
+
+### Fixed
+- **Option+Space typing spaces**: NSEvent monitors are read-only and can't suppress events. CGEventTap returns nil to fully consume matched hotkey events.
+- **Accessibility not detected after granting**: Now uses `AXIsProcessTrustedWithOptions` with `kAXTrustedCheckOptionPrompt` to trigger the system dialog and properly re-checks after a delay.
+
 ## [0.3.0] - 2026-02-10
 
 ### Added

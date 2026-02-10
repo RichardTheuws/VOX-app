@@ -17,6 +17,7 @@ final class VoxSettings: ObservableObject {
     @AppStorage("sttEngine") var sttEngine: STTEngine = .hex
     @AppStorage("activationMode") var activationMode: ActivationMode = .pushToTalk
     @AppStorage("whisperModel") var whisperModel: WhisperModel = .largev3
+    @AppStorage("pushToTalkHotkey") var pushToTalkHotkey: PushToTalkHotkey = .controlSpace
 
     // MARK: - TTS Output
 
@@ -146,4 +147,42 @@ enum SummarizationMethod: String, CaseIterable, Codable {
     case ollama = "Ollama"
     case claudeAPI = "Claude API"
     case openaiAPI = "OpenAI API"
+}
+
+/// Hotkey presets for push-to-talk activation.
+enum PushToTalkHotkey: String, CaseIterable, Codable {
+    case controlSpace = "Control+Space"
+    case optionSpace = "Option+Space"
+    case commandShiftV = "Command+Shift+V"
+    case fnSpace = "Fn+Space"
+
+    var displayName: String { rawValue }
+
+    /// The modifier flags this hotkey uses.
+    var modifierFlags: CGEventFlags {
+        switch self {
+        case .controlSpace: return .maskControl
+        case .optionSpace: return .maskAlternate
+        case .commandShiftV: return [.maskCommand, .maskShift]
+        case .fnSpace: return .maskSecondaryFn
+        }
+    }
+
+    /// The key code to match.
+    var keyCode: UInt16 {
+        switch self {
+        case .controlSpace, .optionSpace, .fnSpace: return 49 // Space
+        case .commandShiftV: return 9 // V
+        }
+    }
+
+    /// Short display for menu bar.
+    var shortLabel: String {
+        switch self {
+        case .controlSpace: return "⌃Space"
+        case .optionSpace: return "⌥Space"
+        case .commandShiftV: return "⌘⇧V"
+        case .fnSpace: return "FnSpace"
+        }
+    }
 }

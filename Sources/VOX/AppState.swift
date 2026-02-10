@@ -72,8 +72,9 @@ final class AppState: ObservableObject {
     // MARK: - Lifecycle
 
     func start() {
-        // Register hotkeys
+        // Register hotkeys with configured preset
         hotkeyManager.register(
+            hotkey: settings.pushToTalkHotkey,
             onPushToTalkStart: { [weak self] in
                 Task { @MainActor in
                     self?.startListening()
