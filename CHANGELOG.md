@@ -5,6 +5,18 @@ All notable changes to VOX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.1] - 2026-02-11
+
+### Fixed
+- **HexBridge: clipboard monitoring replaced with file monitoring**: Hex's default mode copies text to clipboard, simulates Cmd+V, then **restores the original clipboard** within milliseconds. VOX's 0.15s clipboard polling could never catch this. Now monitors Hex's `transcription_history.json` file instead — reliable, no timing issues, includes source app metadata.
+- **Root cause identified**: Hex setting `copyToClipboard: false` + `useClipboardPaste: true` means clipboard content is transient. The transcription_history.json file persists every dictation with timestamp, text, source app, and duration.
+
+### Changed
+- HexBridge now uses `FileManager` to poll Hex's history file (0.3s interval) instead of `NSPasteboard` clipboard monitoring.
+- Removed all clipboard-related heuristics (`isLikelyTranscription`, `lastClipboardChangeCount`, etc.) — no longer needed.
+- Added `HexHistoryEntry` model to decode Hex's JSON history format.
+- `seedLastTimestamp()` on init prevents re-processing old transcriptions on app launch.
+
 ## [0.4.0] - 2026-02-10
 
 ### Changed
