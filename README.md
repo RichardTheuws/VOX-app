@@ -121,8 +121,8 @@ VOX (Menu Bar App)
 ## Roadmap
 
 - **v0.1** — Terminal + Claude Code CLI + macOS Say TTS + 90 tests
-- **v0.2** — Floating panels + Escape handler + app icon + .app bundle *(current)*
-- **v0.3** — Kokoro/Piper/ElevenLabs TTS + VS Code/Cursor/Windsurf
+- **v0.3** — App icon + .app bundle + onboarding wizard + accessibility check *(current)*
+- **v0.4** — Kokoro/Piper/ElevenLabs TTS + VS Code/Cursor/Windsurf
 - **v0.4** — Plugin system + Git/Docker voice commands
 - **v1.0** — Production ready + Homebrew install
 
@@ -147,4 +147,4 @@ MIT License — see [LICENSE](LICENSE)
 Part of the [tools.theuws.com](https://tools.theuws.com) ecosystem.
 
 ---
-Version 0.2.1
+Version 0.3.0

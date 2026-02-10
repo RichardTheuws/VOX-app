@@ -26,6 +26,11 @@ struct MenuBarView: View {
             VStack(alignment: .leading, spacing: 4) {
                 statusRow(label: "Status", value: appState.statusText, color: appState.statusColor)
                 statusRow(label: "Target", value: appState.currentTarget.rawValue)
+                statusRow(
+                    label: "Hex",
+                    value: appState.hexBridge.isHexRunning ? "Running" : "Not detected",
+                    color: appState.hexBridge.isHexRunning ? .statusGreen : .statusOrange
+                )
                 HStack {
                     Text("Verbosity")
                         .font(.caption)
@@ -87,6 +92,16 @@ struct MenuBarView: View {
 
             Button(action: appState.openHistory) {
                 Label("History", systemImage: "clock")
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
+
+            Button(action: {
+                appState.settings.hasCompletedOnboarding = false
+                appState.showOnboarding()
+            }) {
+                Label("Setup Wizard...", systemImage: "wand.and.stars")
             }
             .buttonStyle(.plain)
             .padding(.horizontal, 12)

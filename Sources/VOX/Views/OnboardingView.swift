@@ -5,10 +5,13 @@ import AVFoundation
 struct OnboardingView: View {
     @ObservedObject var appState: AppState
     @State private var currentStep = 0
+    @State private var accessibilityGranted = false
     @State private var micAccessGranted = false
     @State private var hexDetected = false
     @State private var ttsTestPassed = false
     @State private var selectedTTS: TTSEngineType = .macosSay
+
+    private let totalSteps = 5
 
     let onComplete: () -> Void
 
@@ -26,7 +29,7 @@ struct OnboardingView: View {
 
             // Step indicator
             HStack(spacing: 8) {
-                ForEach(0..<4, id: \.self) { step in
+                ForEach(0..<totalSteps, id: \.self) { step in
                     Circle()
                         .fill(step <= currentStep ? Color.accentBlue : Color.secondary.opacity(0.3))
                         .frame(width: 8, height: 8)
@@ -38,10 +41,11 @@ struct OnboardingView: View {
             // Step content
             Group {
                 switch currentStep {
-                case 0: microphoneStep
-                case 1: hexStep
-                case 2: ttsStep
-                case 3: testStep
+                case 0: accessibilityStep
+                case 1: microphoneStep
+                case 2: hexStep
+                case 3: ttsStep
+                case 4: testStep
                 default: EmptyView()
                 }
             }
@@ -53,7 +57,7 @@ struct OnboardingView: View {
                     Button("Back") { currentStep -= 1 }
                 }
                 Spacer()
-                if currentStep < 3 {
+                if currentStep < totalSteps - 1 {
                     Button("Next") { currentStep += 1 }
                         .buttonStyle(.borderedProminent)
                         .tint(.accentBlue)
@@ -65,17 +69,57 @@ struct OnboardingView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.accentBlue)
-                    .disabled(!ttsTestPassed && !micAccessGranted)
                 }
             }
             .padding(.bottom, 16)
         }
         .padding(24)
-        .frame(width: 400, height: 460)
-        .onAppear { checkMicAccess() }
+        .frame(width: 400, height: 520)
+        .onAppear {
+            checkAccessibility()
+            checkMicAccess()
+        }
     }
 
     // MARK: - Steps
+
+    private var accessibilityStep: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "hand.raised.circle.fill")
+                .font(.system(size: 48))
+                .foregroundColor(.accentBlue)
+
+            Text("Step 1/\(totalSteps): Accessibility Access")
+                .font(.headline)
+
+            Text("VOX needs Accessibility access to capture global hotkeys (Option+Space for push-to-talk).")
+                .multilineTextAlignment(.center)
+                .foregroundColor(.secondary)
+
+            if accessibilityGranted {
+                Label("Accessibility access granted", systemImage: "checkmark.circle.fill")
+                    .foregroundColor(.statusGreen)
+            } else {
+                VStack(spacing: 8) {
+                    Button("Open System Settings") {
+                        openAccessibilitySettings()
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button("Check Again") {
+                        checkAccessibility()
+                    }
+                    .buttonStyle(.borderless)
+                    .font(.caption)
+
+                    Text("Add VOX in Privacy & Security → Accessibility")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+            }
+        }
+    }
 
     private var microphoneStep: some View {
         VStack(spacing: 16) {
@@ -83,7 +127,7 @@ struct OnboardingView: View {
                 .font(.system(size: 48))
                 .foregroundColor(.accentBlue)
 
-            Text("Step 1/4: Microphone Access")
+            Text("Step 2/\(totalSteps): Microphone Access")
                 .font(.headline)
 
             Text("VOX needs microphone access to hear your voice commands.")
@@ -108,10 +152,10 @@ struct OnboardingView: View {
                 .font(.system(size: 48))
                 .foregroundColor(.accentBlue)
 
-            Text("Step 2/4: Install Hex")
+            Text("Step 3/\(totalSteps): Install Hex")
                 .font(.headline)
 
-            Text("VOX uses Hex for on-device speech recognition. No data leaves your Mac.")
+            Text("VOX uses Hex for on-device speech recognition.\nNo data leaves your Mac.")
                 .multilineTextAlignment(.center)
                 .foregroundColor(.secondary)
 
@@ -124,14 +168,18 @@ struct OnboardingView: View {
                 Button("I already have Hex") {
                     appState.hexBridge.checkHexStatus()
                     hexDetected = appState.hexBridge.isHexRunning
-                    if hexDetected { currentStep += 1 }
                 }
                 .buttonStyle(.bordered)
             }
 
             if hexDetected {
-                Label("Hex detected", systemImage: "checkmark.circle.fill")
+                Label("Hex detected and running!", systemImage: "checkmark.circle.fill")
                     .foregroundColor(.statusGreen)
+            } else {
+                Text("Start Hex before continuing. You can skip this and install later.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
             }
         }
     }
@@ -142,7 +190,7 @@ struct OnboardingView: View {
                 .font(.system(size: 48))
                 .foregroundColor(.accentBlue)
 
-            Text("Step 3/4: Choose TTS Engine")
+            Text("Step 4/\(totalSteps): Choose TTS Engine")
                 .font(.headline)
 
             VStack(alignment: .leading, spacing: 8) {
@@ -153,14 +201,14 @@ struct OnboardingView: View {
                     action: { selectedTTS = .macosSay }
                 )
                 TTSOptionRow(
-                    title: "Kokoro (coming in v0.2)",
+                    title: "Kokoro (coming in v0.3)",
                     subtitle: "High quality, local, free — 82M params",
                     isSelected: selectedTTS == .kokoro,
                     isDisabled: true,
                     action: {}
                 )
                 TTSOptionRow(
-                    title: "ElevenLabs (coming in v0.2)",
+                    title: "ElevenLabs (coming in v0.3)",
                     subtitle: "Premium quality, cloud, requires API key",
                     isSelected: selectedTTS == .elevenLabs,
                     isDisabled: true,
@@ -176,16 +224,15 @@ struct OnboardingView: View {
                 .font(.system(size: 48))
                 .foregroundColor(ttsTestPassed ? .statusGreen : .accentBlue)
 
-            Text("Step 4/4: Test Your Setup")
+            Text("Step 5/\(totalSteps): Test Your Setup")
                 .font(.headline)
 
-            Text("Press the button and say \"hello\" to test.")
+            Text("Press the button to test text-to-speech.\nAfter setup, use Option+Space to talk to VOX.")
                 .multilineTextAlignment(.center)
                 .foregroundColor(.secondary)
 
-            Button("Test Now") {
-                // Simple test: just play TTS
-                appState.ttsEngine.speak("VOX is ready.")
+            Button("Test TTS") {
+                appState.ttsEngine.speak("VOX is ready. Hold Option Space to talk to me.")
                 ttsTestPassed = true
             }
             .buttonStyle(.bordered)
@@ -195,10 +242,53 @@ struct OnboardingView: View {
                     .foregroundColor(.statusGreen)
                     .font(.headline)
             }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("After setup:")
+                    .font(.caption.bold())
+                HStack(spacing: 4) {
+                    Text("⌥Space")
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundColor(.accentBlue)
+                    Text("Push-to-talk")
+                        .font(.caption)
+                }
+                HStack(spacing: 4) {
+                    Text("⌥V")
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundColor(.accentBlue)
+                    Text("Cycle verbosity")
+                        .font(.caption)
+                }
+                HStack(spacing: 4) {
+                    Text("Escape")
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundColor(.accentBlue)
+                    Text("Cancel")
+                        .font(.caption)
+                }
+            }
+            .padding(8)
+            .background(Color.secondary.opacity(0.1))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
         }
     }
 
     // MARK: - Helpers
+
+    private func checkAccessibility() {
+        accessibilityGranted = AXIsProcessTrusted()
+    }
+
+    private func openAccessibilitySettings() {
+        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
+        NSWorkspace.shared.open(url)
+        // Re-check after delay
+        Task {
+            try? await Task.sleep(for: .seconds(3))
+            checkAccessibility()
+        }
+    }
 
     private func checkMicAccess() {
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
