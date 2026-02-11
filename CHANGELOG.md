@@ -5,6 +5,27 @@ All notable changes to VOX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.7.1] - 2026-02-11
+
+### Added
+- **Notice Sound Packs**: 6 built-in notice packs for the Notice verbosity level — TTS (default), WarCraft Peon ("Job's done!"), Super Mario ("Wahoo!"), Command & Conquer ("Construction complete."), Legend of Zelda ("Quest complete!"), and macOS System Sounds (Glass, Hero, Basso). Each pack has success and error phrase sets, spoken via TTS or played as system sounds.
+- **Custom Sound Packs**: Drop your own `.wav`, `.mp3`, `.aif` audio files into `~/Library/Application Support/VOX/SoundPacks/[Pack Name]/success/` and `/error/` directories. VOX auto-detects custom packs and shows them in Settings. Perfect for adding your own game sounds for personal use.
+- **SoundPackManager**: New `ObservableObject` service that scans the filesystem for custom sound packs, supports `.wav/.mp3/.aif/.aiff/.m4a/.caf` formats, and provides pack selection.
+- **Sound Pack Settings UI**: New "Notice Sound Pack" section in Settings → TTS tab with built-in pack picker, description text, Preview button, custom packs picker (when packs are found), and "Add your own sound packs" disclosure with instructions and Open Folder / Refresh buttons.
+- **5 new tests**: Notice sound pack tests for WarCraft phrases, Mario error phrases, system sounds (NSSound), TTS fallback, and custom pack scanning. Total: 42 tests (was 37).
+
+### Changed
+- **ProcessedResponse extended**: Added `soundName: String?` for macOS system sounds and `customSoundURL: URL?` for custom audio file playback.
+- **ResponseProcessor pack-aware**: `.notice` verbosity now checks: (1) custom sound pack, (2) built-in game phrases via TTS, (3) macOS system sounds, (4) localized TTS notice fallback.
+- **TTSEngine audio playback**: Added `playSystemSound(_:)` using `NSSound(named:)` and `playCustomSound(at:)` using `NSSound(contentsOf:byReference:)`.
+- **AppState response routing**: Now routes `ProcessedResponse` to TTS speech, system sound, or custom audio based on response type.
+
+### Technical
+- `NoticeSoundPack.swift` — New file: enum with 6 cases, `CustomSoundPack` struct, `SoundPackManager` class (~130 lines)
+- `SoundPackManager` injected into `ResponseProcessor` and owned by `AppState`
+- `VoxSettings` gains `noticeSoundPack` and `customSoundPackName` @AppStorage properties
+- Test setUp() resets sound pack settings to prevent singleton state pollution between tests
+
 ## [0.7.0] - 2026-02-11
 
 ### Added

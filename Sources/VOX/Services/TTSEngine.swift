@@ -47,6 +47,20 @@ final class TTSEngine: ObservableObject {
         isSpeaking = false
     }
 
+    /// Play a macOS system sound by name.
+    func playSystemSound(_ name: String) {
+        guard let sound = NSSound(named: name) else { return }
+        sound.volume = Float(settings.ttsVolume)
+        sound.play()
+    }
+
+    /// Play a custom audio file from URL.
+    func playCustomSound(at url: URL) {
+        guard let sound = NSSound(contentsOf: url, byReference: true) else { return }
+        sound.volume = Float(settings.ttsVolume)
+        sound.play()
+    }
+
     // MARK: - Native macOS TTS
 
     private func speakWithNative(_ text: String) {

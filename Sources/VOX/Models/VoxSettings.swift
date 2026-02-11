@@ -31,6 +31,11 @@ final class VoxSettings: ObservableObject {
     @AppStorage("defaultTarget") var defaultTarget: TargetApp = .terminal
     @AppStorage("fallbackTarget") var fallbackTarget: TargetApp = .terminal
 
+    // MARK: - Notice Sound Pack
+
+    @AppStorage("noticeSoundPack") var noticeSoundPack: NoticeSoundPack = .tts
+    @AppStorage("customSoundPackName") var customSoundPackName: String = ""
+
     // MARK: - Advanced
 
     @AppStorage("summarizationMethod") var summarizationMethod: SummarizationMethod = .heuristic

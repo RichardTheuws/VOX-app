@@ -13,7 +13,7 @@ struct SettingsView: View {
             AppsSettingsTab(settings: settings)
                 .tabItem { Label("Apps", systemImage: "app.badge") }
 
-            TTSSettingsTab(settings: settings)
+            TTSSettingsTab(settings: settings, soundPackManager: appState.soundPackManager, ttsEngine: appState.ttsEngine)
                 .tabItem { Label("TTS", systemImage: "speaker.wave.2") }
 
             AdvancedSettingsTab(settings: settings, ollamaService: appState.ollamaService)
@@ -108,6 +108,8 @@ struct AppsSettingsTab: View {
 
 struct TTSSettingsTab: View {
     @ObservedObject var settings: VoxSettings
+    @ObservedObject var soundPackManager: SoundPackManager
+    let ttsEngine: TTSEngine
 
     var body: some View {
         Form {
@@ -137,6 +139,64 @@ struct TTSSettingsTab: View {
                 Toggle("Interrupt on new command", isOn: $settings.interruptOnNewCommand)
             }
 
+            Section("Notice Sound Pack") {
+                Picker("Built-in Pack", selection: $settings.noticeSoundPack) {
+                    ForEach(NoticeSoundPack.allCases) { pack in
+                        Text(pack.label).tag(pack)
+                    }
+                }
+
+                Text(settings.noticeSoundPack.description)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Button("Preview") {
+                    previewCurrentPack()
+                }
+                .buttonStyle(.bordered)
+
+                if !soundPackManager.customPacks.isEmpty {
+                    Divider()
+
+                    Text("Custom Sound Packs")
+                        .font(.callout.bold())
+
+                    Picker("Custom Pack", selection: $settings.customSoundPackName) {
+                        Text("None (use built-in)").tag("")
+                        ForEach(soundPackManager.customPacks) { pack in
+                            Text("\(pack.name) (\(pack.successFiles.count + pack.errorFiles.count) sounds)")
+                                .tag(pack.name)
+                        }
+                    }
+                }
+
+                DisclosureGroup("Add your own sound packs") {
+                    Text("Place audio files (.wav, .mp3, .aif) in:")
+                        .font(.caption)
+                    Text("~/Library/Application Support/VOX/SoundPacks/[Pack Name]/success/")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    Text("~/Library/Application Support/VOX/SoundPacks/[Pack Name]/error/")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+
+                    HStack {
+                        Button("Open Folder") {
+                            // Ensure directory exists before opening
+                            try? FileManager.default.createDirectory(
+                                at: SoundPackManager.soundPacksDirectory,
+                                withIntermediateDirectories: true
+                            )
+                            NSWorkspace.shared.open(SoundPackManager.soundPacksDirectory)
+                        }
+                        Button("Refresh") {
+                            soundPackManager.scanForPacks()
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+
             Section("Default Verbosity") {
                 Picker("Global default", selection: $settings.defaultVerbosity) {
                     ForEach(VerbosityLevel.allCases) { level in
@@ -157,6 +217,29 @@ struct TTSSettingsTab: View {
         }
         .formStyle(.grouped)
         .padding()
+    }
+
+    private func previewCurrentPack() {
+        // Custom pack takes priority
+        if !settings.customSoundPackName.isEmpty,
+           let customPack = soundPackManager.selectedPack(named: settings.customSoundPackName),
+           let soundURL = customPack.randomSound(isSuccess: true) {
+            ttsEngine.playCustomSound(at: soundURL)
+            return
+        }
+
+        let pack = settings.noticeSoundPack
+        switch pack {
+        case .tts:
+            ttsEngine.speak("Done. Check the terminal to continue.")
+        case .warcraft, .mario, .commandConquer, .zelda:
+            if let phrase = pack.randomPhrase(isSuccess: true) {
+                ttsEngine.speak(phrase)
+            }
+        case .systemSounds:
+            let soundName = NoticeSoundPack.successSounds.randomElement() ?? "Glass"
+            ttsEngine.playSystemSound(soundName)
+        }
     }
 }
 

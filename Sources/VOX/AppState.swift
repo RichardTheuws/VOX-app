@@ -19,6 +19,7 @@ final class AppState: ObservableObject {
     let ttsEngine: TTSEngine
     let history: CommandHistory
     let ollamaService: OllamaService
+    let soundPackManager: SoundPackManager
 
     private let terminalReader: TerminalReader
     private let responseProcessor: ResponseProcessor
@@ -38,7 +39,11 @@ final class AppState: ObservableObject {
         self.history = CommandHistory()
         self.terminalReader = TerminalReader()
         self.ollamaService = OllamaService()
-        self.responseProcessor = ResponseProcessor(ollamaService: ollamaService)
+        self.soundPackManager = SoundPackManager()
+        self.responseProcessor = ResponseProcessor(ollamaService: ollamaService, soundPackManager: soundPackManager)
+
+        // Scan for user-provided custom sound packs
+        soundPackManager.scanForPacks()
 
         self.currentVerbosity = settings.defaultVerbosity
         self.currentTarget = settings.defaultTarget
@@ -166,9 +171,13 @@ final class AppState: ObservableObject {
             command.summary = processed.spokenText
             history.update(command)
 
-            // 4. Speak the response
+            // 4. Play the response
             if let text = processed.spokenText {
                 ttsEngine.speak(text)
+            } else if let soundName = processed.soundName {
+                ttsEngine.playSystemSound(soundName)
+            } else if let soundURL = processed.customSoundURL {
+                ttsEngine.playCustomSound(at: soundURL)
             }
 
             appMode = .idle

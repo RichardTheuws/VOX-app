@@ -6,6 +6,9 @@ final class ResponseProcessorTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        // Reset sound pack settings to defaults to avoid test pollution
+        VoxSettings.shared.noticeSoundPack = .tts
+        VoxSettings.shared.customSoundPackName = ""
         processor = ResponseProcessor()
     }
 
@@ -234,5 +237,86 @@ final class ResponseProcessorTests: XCTestCase {
         XCTAssertTrue(VerbosityLevel.silent < VerbosityLevel.notice)
         XCTAssertTrue(VerbosityLevel.notice < VerbosityLevel.summary)
         XCTAssertTrue(VerbosityLevel.summary < VerbosityLevel.full)
+    }
+
+    // MARK: - Notice Sound Packs
+
+    func testNoticeWarCraftPhrase() async {
+        let settings = VoxSettings.shared
+        settings.noticeSoundPack = .warcraft
+        settings.customSoundPackName = ""
+        let packProcessor = ResponseProcessor(settings: settings)
+
+        let result = ExecutionResult(output: "output", exitCode: 0, duration: 0.5, wasTimeout: false)
+        let response = await packProcessor.process(result, verbosity: .notice, command: "ls")
+
+        XCTAssertNotNil(response.spokenText)
+        let validPhrases = NoticeSoundPack.warcraft.successPhrases
+        XCTAssertTrue(validPhrases.contains(response.spokenText!),
+                       "Expected one of \(validPhrases), got: \(response.spokenText!)")
+        XCTAssertEqual(response.status, .success)
+    }
+
+    func testNoticeMarioError() async {
+        let settings = VoxSettings.shared
+        settings.noticeSoundPack = .mario
+        settings.customSoundPackName = ""
+        let packProcessor = ResponseProcessor(settings: settings)
+
+        let result = ExecutionResult(output: "error", exitCode: 1, duration: 0.5, wasTimeout: false)
+        let response = await packProcessor.process(result, verbosity: .notice, command: "build")
+
+        XCTAssertNotNil(response.spokenText)
+        let validPhrases = NoticeSoundPack.mario.errorPhrases
+        XCTAssertTrue(validPhrases.contains(response.spokenText!),
+                       "Expected one of \(validPhrases), got: \(response.spokenText!)")
+        XCTAssertEqual(response.status, .error)
+    }
+
+    func testNoticeSystemSound() async {
+        let settings = VoxSettings.shared
+        settings.noticeSoundPack = .systemSounds
+        settings.customSoundPackName = ""
+        let packProcessor = ResponseProcessor(settings: settings)
+
+        let result = ExecutionResult(output: "output", exitCode: 0, duration: 0.5, wasTimeout: false)
+        let response = await packProcessor.process(result, verbosity: .notice, command: "ls")
+
+        // System sounds should return soundName, not spokenText
+        XCTAssertNil(response.spokenText)
+        XCTAssertNotNil(response.soundName)
+        XCTAssertTrue(NoticeSoundPack.successSounds.contains(response.soundName!),
+                       "Expected one of \(NoticeSoundPack.successSounds), got: \(response.soundName!)")
+        XCTAssertEqual(response.status, .success)
+    }
+
+    func testNoticeTTSFallback() async {
+        let settings = VoxSettings.shared
+        settings.noticeSoundPack = .tts
+        settings.customSoundPackName = ""
+        let packProcessor = ResponseProcessor(settings: settings)
+
+        let result = ExecutionResult(output: "output", exitCode: 0, duration: 0.5, wasTimeout: false)
+        let response = await packProcessor.process(result, verbosity: .notice, command: "ls")
+
+        // TTS pack should return localized notice, same as before
+        XCTAssertNotNil(response.spokenText)
+        XCTAssertNil(response.soundName)
+        XCTAssertNil(response.customSoundURL)
+        XCTAssertTrue(response.spokenText!.contains("Done") || response.spokenText!.contains("Klaar"))
+    }
+
+    func testCustomSoundPackScanning() {
+        let manager = SoundPackManager()
+
+        // Ensure the directory exists
+        let dir = SoundPackManager.soundPacksDirectory
+        XCTAssertNotNil(dir)
+
+        // Scan should not crash even with empty directory
+        manager.scanForPacks()
+
+        // Verify scanning doesn't crash and returns empty or valid packs
+        XCTAssertNotNil(manager.customPacks)
     }
 }

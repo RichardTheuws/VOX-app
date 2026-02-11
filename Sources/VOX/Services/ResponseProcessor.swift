@@ -4,10 +4,12 @@ import Foundation
 final class ResponseProcessor {
     private let settings: VoxSettings
     var ollamaService: OllamaService?
+    var soundPackManager: SoundPackManager?
 
-    init(settings: VoxSettings = .shared, ollamaService: OllamaService? = nil) {
+    init(settings: VoxSettings = .shared, ollamaService: OllamaService? = nil, soundPackManager: SoundPackManager? = nil) {
         self.settings = settings
         self.ollamaService = ollamaService
+        self.soundPackManager = soundPackManager
     }
 
     /// Process command output according to verbosity level.
@@ -20,8 +22,30 @@ final class ResponseProcessor {
             )
 
         case .notice:
-            let notice = localizedNotice(isSuccess: result.isSuccess)
-            return ProcessedResponse(spokenText: notice, status: result.isSuccess ? .success : .error)
+            let status: CommandStatus = result.isSuccess ? .success : .error
+
+            // Check for custom sound pack first
+            if !settings.customSoundPackName.isEmpty,
+               let customPack = soundPackManager?.selectedPack(named: settings.customSoundPackName),
+               let soundURL = customPack.randomSound(isSuccess: result.isSuccess) {
+                return ProcessedResponse(spokenText: nil, customSoundURL: soundURL, status: status)
+            }
+
+            let pack = settings.noticeSoundPack
+            switch pack {
+            case .tts:
+                let notice = localizedNotice(isSuccess: result.isSuccess)
+                return ProcessedResponse(spokenText: notice, status: status)
+
+            case .warcraft, .mario, .commandConquer, .zelda:
+                let phrase = pack.randomPhrase(isSuccess: result.isSuccess) ?? localizedNotice(isSuccess: result.isSuccess)
+                return ProcessedResponse(spokenText: phrase, status: status)
+
+            case .systemSounds:
+                let sounds = result.isSuccess ? NoticeSoundPack.successSounds : NoticeSoundPack.errorSounds
+                let soundName = sounds.randomElement() ?? "Glass"
+                return ProcessedResponse(spokenText: nil, soundName: soundName, status: status)
+            }
 
         case .summary:
             let cleaned = stripTerminalUI(result.output)
@@ -331,7 +355,16 @@ final class ResponseProcessor {
 
 struct ProcessedResponse {
     let spokenText: String?
+    let soundName: String?        // NSSound name for system sounds
+    let customSoundURL: URL?      // URL to custom audio file
     let status: CommandStatus
+
+    init(spokenText: String?, soundName: String? = nil, customSoundURL: URL? = nil, status: CommandStatus) {
+        self.spokenText = spokenText
+        self.soundName = soundName
+        self.customSoundURL = customSoundURL
+        self.status = status
+    }
 }
 
 /// Result from terminal monitoring (or command execution).
