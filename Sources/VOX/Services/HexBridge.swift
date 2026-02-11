@@ -12,7 +12,7 @@ final class HexBridge: ObservableObject {
     private var fileMonitorTimer: Timer?
     private var lastProcessedTimestamp: Double = 0
     private var lastFileModDate: Date?
-    private var onTranscription: ((String) -> Void)?
+    private var onTranscription: ((HexHistoryEntry) -> Void)?
 
     private let hexBundleID = "com.kitlangton.Hex"
 
@@ -29,7 +29,7 @@ final class HexBridge: ObservableObject {
     }
 
     /// Start monitoring for Hex transcriptions via history file.
-    func startMonitoring(onTranscription: @escaping (String) -> Void) {
+    func startMonitoring(onTranscription: @escaping (HexHistoryEntry) -> Void) {
         stopMonitoring()
         self.onTranscription = onTranscription
 
@@ -112,7 +112,7 @@ final class HexBridge: ObservableObject {
             guard !text.isEmpty else { continue }
 
             lastTranscription = text
-            onTranscription?(text)
+            onTranscription?(entry)
         }
 
         // Also update Hex running status while we're at it

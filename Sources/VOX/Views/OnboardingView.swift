@@ -441,15 +441,15 @@ struct OnboardingView: View {
     private func startTestListening() {
         isTestListening = true
         testTranscription = nil
-        // Start monitoring clipboard for Hex output
+        // Start monitoring Hex transcription history for new dictations
         appState.hexBridge.checkHexStatus()
-        appState.hexBridge.startMonitoring { transcription in
+        appState.hexBridge.startMonitoring { entry in
             Task { @MainActor in
-                testTranscription = transcription
+                testTranscription = entry.text
                 isTestListening = false
                 voiceTestPassed = true
                 appState.hexBridge.stopMonitoring()
-                appState.ttsEngine.speak("I heard: \(transcription)")
+                appState.ttsEngine.speak("I heard: \(entry.text)")
             }
         }
     }

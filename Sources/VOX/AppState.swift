@@ -22,6 +22,7 @@ final class AppState: ObservableObject {
 
     private let commandRouter: CommandRouter
     private let terminalExecutor: TerminalExecutor
+    private let terminalReader: TerminalReader
     private let responseProcessor: ResponseProcessor
     private let safetyChecker: SafetyChecker
 
@@ -47,6 +48,7 @@ final class AppState: ObservableObject {
         self.history = CommandHistory()
         self.commandRouter = CommandRouter()
         self.terminalExecutor = TerminalExecutor()
+        self.terminalReader = TerminalReader()
         self.responseProcessor = ResponseProcessor()
         self.safetyChecker = SafetyChecker()
 
@@ -114,10 +116,10 @@ final class AppState: ObservableObject {
             }
         )
 
-        // Start Hex bridge monitoring
-        hexBridge.startMonitoring { [weak self] transcription in
+        // Start Hex bridge monitoring — receives full entry with source app info
+        hexBridge.startMonitoring { [weak self] entry in
             Task { @MainActor in
-                self?.handleTranscription(transcription)
+                self?.handleTranscription(entry)
             }
         }
 
@@ -149,7 +151,15 @@ final class AppState: ObservableObject {
         }
     }
 
-    private func handleTranscription(_ text: String) {
+    /// Bundle IDs of apps whose output VOX should monitor (not execute).
+    private static let monitorableBundleIDs: Set<String> = [
+        "com.apple.Terminal",         // Terminal.app (incl. Claude Code)
+        "com.googlecode.iterm2",      // iTerm2
+    ]
+
+    private func handleTranscription(_ entry: HexHistoryEntry) {
+        let text = entry.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
         liveTranscription = text
 
         if appMode == .listening {
@@ -157,12 +167,19 @@ final class AppState: ObservableObject {
             return
         }
 
-        if appMode == .idle {
-            // Auto-process mode: Hex transcription arrived while VOX is idle.
-            // Process it immediately as a command.
-            processTranscription(text)
+        guard appMode == .idle else { return } // Busy — ignore
+
+        let sourceApp = entry.sourceAppBundleID ?? ""
+
+        // Route based on which app Hex dictated into
+        if Self.monitorableBundleIDs.contains(sourceApp) {
+            // Hex pasted text into Terminal/iTerm2 → monitor app output
+            monitorTerminalResponse(transcription: text, bundleID: sourceApp)
+        } else {
+            // Other apps (Cursor, WhatsApp, Notes, etc.) → ignore
+            // The user was dictating into a non-monitored app.
+            // Don't execute, don't speak — just log for debugging.
         }
-        // If processing or confirmingDestructive, ignore (busy)
     }
 
     /// Confirm and execute the pending destructive command.
@@ -187,8 +204,9 @@ final class AppState: ObservableObject {
             appMode = .idle
         case .confirmingDestructive:
             cancelDestructiveCommand()
-        case .processing:
+        case .processing, .monitoring:
             ttsEngine.stop()
+            appMode = .idle
         case .idle:
             break
         }
@@ -299,6 +317,73 @@ final class AppState: ObservableObject {
         }
     }
 
+    // MARK: - Monitor Mode
+
+    /// Monitor terminal output after Hex dictated a command into Terminal/iTerm2.
+    /// Instead of executing, we read the terminal's response and speak it.
+    private func monitorTerminalResponse(transcription: String, bundleID: String) {
+        appMode = .monitoring
+
+        let target: TargetApp = bundleID == "com.googlecode.iterm2" ? .iterm2 : .terminal
+
+        // Create history entry
+        var command = VoxCommand(
+            transcription: transcription,
+            resolvedCommand: "(monitoring \(target.rawValue))",
+            target: target
+        )
+        command.status = .running
+        history.add(command)
+
+        Task {
+            // 1. Take a snapshot of current terminal content immediately
+            let snapshot = await terminalReader.readContent(for: bundleID) ?? ""
+
+            // 2. Wait for new output to appear and stabilize
+            let newOutput = await terminalReader.waitForNewOutput(
+                bundleID: bundleID,
+                initialSnapshot: snapshot,
+                timeout: settings.commandTimeout,
+                stabilizeDelay: 1.5
+            )
+
+            guard let output = newOutput, !output.isEmpty else {
+                command.status = .success
+                command.summary = "No new output detected."
+                history.update(command)
+                if currentVerbosity != .silent {
+                    ttsEngine.speak("No new output.")
+                }
+                appMode = .idle
+                return
+            }
+
+            // 3. Process the captured output
+            command.output = output
+            command.status = .success
+
+            let result = ExecutionResult(
+                output: output,
+                exitCode: 0,
+                duration: 0,
+                wasTimeout: false
+            )
+
+            let verbosity = settings.verbosity(for: target)
+            let processed = responseProcessor.process(result, verbosity: verbosity, command: transcription)
+
+            command.summary = processed.spokenText
+            history.update(command)
+
+            // 4. Speak the response
+            if let text = processed.spokenText {
+                ttsEngine.speak(text)
+            }
+
+            appMode = .idle
+        }
+    }
+
     // MARK: - Verbosity
 
     private func cycleVerbosity() {
@@ -314,6 +399,7 @@ final class AppState: ObservableObject {
         case .idle: "Idle"
         case .listening: "Listening..."
         case .processing: "Processing..."
+        case .monitoring: "Monitoring..."
         case .confirmingDestructive: "Confirm?"
         }
     }
@@ -322,7 +408,7 @@ final class AppState: ObservableObject {
         switch appMode {
         case .idle: .secondary
         case .listening: .accentBlue
-        case .processing: .accentBlue
+        case .processing, .monitoring: .accentBlue
         case .confirmingDestructive: .statusOrange
         }
     }
@@ -332,6 +418,7 @@ final class AppState: ObservableObject {
         case .idle: "mic"
         case .listening: "mic.fill"
         case .processing: "mic.badge.ellipsis"
+        case .monitoring: "eye"
         case .confirmingDestructive: "exclamationmark.triangle"
         }
     }
@@ -346,7 +433,7 @@ final class AppState: ObservableObject {
         case .confirmingDestructive:
             dismissPushToTalkPanel()
             showDestructiveConfirmPanel()
-        case .idle, .processing:
+        case .idle, .processing, .monitoring:
             dismissPushToTalkPanel()
             dismissDestructiveConfirmPanel()
         }
@@ -513,6 +600,7 @@ enum AppMode {
     case idle
     case listening
     case processing
+    case monitoring           // Waiting for terminal output after Hex dictation
     case confirmingDestructive
 }
 

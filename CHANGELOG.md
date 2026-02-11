@@ -5,6 +5,24 @@ All notable changes to VOX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-02-11
+
+### Added
+- **Monitor mode**: VOX now monitors Terminal.app/iTerm2 output when Hex dictation is sent to those apps. Instead of executing the transcription as a command (which Hex already pasted), VOX reads the app's response and speaks it via TTS. This is the core "talk to your terminal, hear what matters" experience.
+- **TerminalReader service**: New service that reads Terminal.app and iTerm2 content via AppleScript (`osascript`). Supports snapshot-and-diff to extract only new output, with configurable stabilization delay and timeout.
+- **AppMode.monitoring**: New app state for when VOX is waiting for terminal output to stabilize. Shows eye icon in menu bar and "Monitoring..." status.
+
+### Changed
+- **HexBridge callback now passes full `HexHistoryEntry`** instead of just the text string. This gives AppState access to `sourceAppBundleID` and `sourceAppName` to determine routing.
+- **Smart routing based on source app**: When Hex dictates into Terminal/iTerm2, VOX enters monitor mode. Dictation into other apps (WhatsApp, Notes, etc.) is ignored — VOX only activates for developer tools.
+- **Menu bar text updated**: "Monitoring Hex — dictate in Terminal" (was "dictate to execute").
+
+### Technical
+- `HexBridge.onTranscription` type changed from `((String) -> Void)` to `((HexHistoryEntry) -> Void)`
+- `TerminalReader.waitForNewOutput()` uses snapshot-diff with 1.5s stabilization delay and configurable timeout
+- `AppState.monitorTerminalResponse()` takes terminal snapshot, waits for output, processes through ResponseProcessor, speaks via TTS
+- Bundle IDs for monitorable apps: `com.apple.Terminal`, `com.googlecode.iterm2`
+
 ## [0.4.1] - 2026-02-11
 
 ### Fixed

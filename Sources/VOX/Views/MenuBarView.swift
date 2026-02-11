@@ -77,7 +77,7 @@ struct MenuBarView: View {
                     Circle()
                         .fill(appState.hexBridge.isHexRunning ? Color.statusGreen : Color.secondary.opacity(0.3))
                         .frame(width: 6, height: 6)
-                    Text(appState.hexBridge.isHexRunning ? "Monitoring Hex — dictate to execute" : "Start Hex to use voice commands")
+                    Text(appState.hexBridge.isHexRunning ? "Monitoring Hex — dictate in Terminal" : "Start Hex to use voice commands")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
