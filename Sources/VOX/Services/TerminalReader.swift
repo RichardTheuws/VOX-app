@@ -1,8 +1,10 @@
 import Foundation
 
-/// Reads terminal content via AppleScript to monitor command output.
-/// Used in "monitor mode" when Hex dictation is sent to Terminal.app.
+/// Reads application content to monitor command output.
+/// Uses AppleScript for Terminal.app/iTerm2, Accessibility API for Electron-based editors.
 final class TerminalReader {
+
+    private let accessibilityReader = AccessibilityReader()
 
     /// Read the current content of Terminal.app's active tab via osascript.
     func readTerminalContent() async -> String? {
@@ -18,7 +20,8 @@ final class TerminalReader {
         )
     }
 
-    /// Read terminal content for the given bundle ID.
+    /// Read content for the given bundle ID.
+    /// Terminal.app and iTerm2 use AppleScript; other apps use the Accessibility API.
     func readContent(for bundleID: String) async -> String? {
         switch bundleID {
         case "com.apple.Terminal":
@@ -26,7 +29,8 @@ final class TerminalReader {
         case "com.googlecode.iterm2":
             return await readITermContent()
         default:
-            return nil
+            // Electron-based apps (Cursor, VS Code, Windsurf) via Accessibility API
+            return await accessibilityReader.readContent(for: bundleID)
         }
     }
 

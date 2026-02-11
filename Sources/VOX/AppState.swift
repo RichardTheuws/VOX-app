@@ -82,9 +82,13 @@ final class AppState: ObservableObject {
     // MARK: - Transcription Handling
 
     /// Bundle IDs of apps whose output VOX should monitor (not execute).
+    /// Terminal.app/iTerm2 use AppleScript; Cursor/VS Code/Windsurf use Accessibility API.
     private static let monitorableBundleIDs: Set<String> = [
-        "com.apple.Terminal",         // Terminal.app (incl. Claude Code)
-        "com.googlecode.iterm2",      // iTerm2
+        "com.apple.Terminal",                  // Terminal.app (incl. Claude Code)
+        "com.googlecode.iterm2",               // iTerm2
+        "com.microsoft.VSCode",                // VS Code
+        "com.todesktop.230313mzl4w4u92",       // Cursor
+        "com.codeium.windsurf",                // Windsurf
     ]
 
     private func handleTranscription(_ entry: HexHistoryEntry) {
@@ -98,10 +102,10 @@ final class AppState: ObservableObject {
 
         // Route based on which app Hex dictated into
         if Self.monitorableBundleIDs.contains(sourceApp) {
-            // Hex pasted text into Terminal/iTerm2 → monitor app output
+            // Hex pasted text into a monitored app → read app output
             monitorTerminalResponse(transcription: text, bundleID: sourceApp)
         }
-        // Other apps (Cursor, WhatsApp, Notes, etc.) → ignore
+        // Other apps (WhatsApp, Notes, etc.) → ignore
     }
 
     /// Cancel whatever is currently happening (e.g. stop TTS).
@@ -117,12 +121,12 @@ final class AppState: ObservableObject {
 
     // MARK: - Monitor Mode
 
-    /// Monitor terminal output after Hex dictated a command into Terminal/iTerm2.
-    /// Instead of executing, we read the terminal's response and speak it.
+    /// Monitor app output after Hex dictated a command into a monitored app.
+    /// Reads the app's response (via AppleScript or Accessibility API) and speaks it.
     private func monitorTerminalResponse(transcription: String, bundleID: String) {
         appMode = .monitoring
 
-        let target: TargetApp = bundleID == "com.googlecode.iterm2" ? .iterm2 : .terminal
+        let target = TargetApp.allCases.first { $0.bundleIdentifier == bundleID } ?? .terminal
 
         // Create history entry
         var command = VoxCommand(

@@ -5,6 +5,25 @@ All notable changes to VOX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.9.0] - 2026-02-11
+
+### Added
+- **Accessibility API support**: VOX can now monitor and read back responses from **Cursor**, **VS Code**, and **Windsurf**. Previously only Terminal.app and iTerm2 were supported (via AppleScript). Electron-based editors use the macOS Accessibility API (`AXUIElement`) to read the focused text element.
+- **AccessibilityReader service**: New service that reads application content via `AXUIElementCopyAttributeValue`. Uses a two-strategy approach: (1) read the focused element's text value directly, (2) fallback to traversing the focused window's AX tree for text-bearing elements (`AXTextArea`, `AXStaticText`, `AXTextField`).
+- **Accessibility permission UI**: Settings → Apps tab now shows Accessibility permission status with a green/orange indicator. "Grant Permission" button opens System Settings when not yet granted. Per-app warnings shown for Cursor/VS Code/Windsurf when permission is missing.
+- **15 new tests**: AccessibilityReader permission check, nil-safety for unknown/empty bundle IDs, TerminalReader AX delegation for Cursor/VS Code/Windsurf, no-regression for Terminal/iTerm2, TargetApp bundle ID lookups, terminal-based vs AX-based app classification. Total: 73 tests (was 58).
+
+### Changed
+- **TerminalReader delegates to AccessibilityReader**: `readContent(for:)` now has a `default` case that routes unknown bundle IDs through `AccessibilityReader`. Existing AppleScript paths for Terminal.app and iTerm2 are unchanged.
+- **AppState routing expanded**: `monitorableBundleIDs` now includes VS Code (`com.microsoft.VSCode`), Cursor (`com.todesktop.230313mzl4w4u92`), and Windsurf (`com.codeium.windsurf`). Target app lookup uses `TargetApp.allCases.first` instead of hardcoded ternary.
+
+### Technical
+- `AccessibilityReader.swift` — New service: AX permission check (always fresh, never cached), focused element reading, window tree traversal (~155 lines)
+- `TerminalReader.swift` — Added `accessibilityReader` property + `default` case in `readContent(for:)` switch
+- `AppState.swift` — `monitorableBundleIDs` expanded from 2 to 5 entries, improved target mapping
+- `SettingsView.swift` — New "Permissions" section in Apps tab with AX status + per-app warnings
+- `AccessibilityReaderTests.swift` — 15 unit tests
+
 ## [0.8.0] - 2026-02-11
 
 ### Added

@@ -62,8 +62,41 @@ struct GeneralSettingsTab: View {
 struct AppsSettingsTab: View {
     @ObservedObject var settings: VoxSettings
 
+    @State private var isAccessibilityGranted = AccessibilityReader.isAccessibilityGranted()
+
     var body: some View {
         Form {
+            Section("Permissions") {
+                HStack {
+                    Circle()
+                        .fill(isAccessibilityGranted ? Color.statusGreen : Color.orange)
+                        .frame(width: 8, height: 8)
+                    Text("Accessibility")
+                    Spacer()
+                    if isAccessibilityGranted {
+                        Text("Granted")
+                            .font(.caption)
+                            .foregroundColor(.statusGreen)
+                    } else {
+                        Button("Grant Permission") {
+                            AccessibilityReader.requestAccessibilityPermission()
+                            // Refresh after a short delay to pick up the new state
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                                isAccessibilityGranted = AccessibilityReader.isAccessibilityGranted()
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
+
+                if !isAccessibilityGranted {
+                    Text("Required to monitor Cursor, VS Code and Windsurf. Not needed for Terminal or iTerm2.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
             Section("Target Apps") {
                 Toggle("Auto-detect active app", isOn: $settings.autoDetectTarget)
 
@@ -84,12 +117,27 @@ struct AppsSettingsTab: View {
                         }
                         .frame(width: 120)
                     }
+                    if !app.isTerminalBased && isAppInstalled(app) && !isAccessibilityGranted {
+                        HStack(spacing: 4) {
+                            Image(systemName: "exclamationmark.triangle")
+                                .font(.caption2)
+                                .foregroundColor(.orange)
+                            Text("Requires Accessibility permission")
+                                .font(.caption2)
+                                .foregroundColor(.orange)
+                        }
+                        .padding(.leading, 16)
+                    }
                 }
             }
 
         }
         .formStyle(.grouped)
         .padding()
+        .onAppear {
+            // Always check fresh — never rely on cached permission state
+            isAccessibilityGranted = AccessibilityReader.isAccessibilityGranted()
+        }
     }
 
     private func isAppInstalled(_ app: TargetApp) -> Bool {
