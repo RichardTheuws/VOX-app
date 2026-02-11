@@ -20,6 +20,7 @@ final class AppState: ObservableObject {
     let history: CommandHistory
     let ollamaService: OllamaService
     let soundPackManager: SoundPackManager
+    let soundPackStore: SoundPackStore
 
     private let terminalReader: TerminalReader
     private let responseProcessor: ResponseProcessor
@@ -40,6 +41,7 @@ final class AppState: ObservableObject {
         self.terminalReader = TerminalReader()
         self.ollamaService = OllamaService()
         self.soundPackManager = SoundPackManager()
+        self.soundPackStore = SoundPackStore()
         self.responseProcessor = ResponseProcessor(ollamaService: ollamaService, soundPackManager: soundPackManager)
 
         // Scan for user-provided custom sound packs

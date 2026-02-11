@@ -85,7 +85,7 @@ swift build -c release
 
 ```bash
 swift test
-# 42 tests, 0 failures
+# 58 tests, 0 failures
 ```
 
 ## Getting Started
@@ -178,7 +178,8 @@ VOX offers a 4-tab settings window:
 | v0.4 | Hex file monitoring + auto-process transcriptions | Done |
 | v0.5 | Monitor mode — read terminal output instead of executing | Done |
 | v0.6 | Strip to Hex companion — remove push-to-talk, execution, safety | Done |
-| v0.7 | Ollama summaries + notice sound packs + terminal UI stripping | **Current** |
+| v0.7 | Ollama summaries + notice sound packs + terminal UI stripping | Done |
+| v0.8 | Sound Pack Store — search & install game sounds from MyInstants | **Current** |
 | v1.0 | Production ready + Homebrew install | Planned |
 
 ## Tech Stack
@@ -190,7 +191,7 @@ VOX offers a 4-tab settings window:
 | TTS | macOS NSSpeechSynthesizer (MVP); Kokoro, Piper (planned) |
 | Terminal Reading | AppleScript via `/usr/bin/osascript` |
 | Platform | macOS 14+ (Apple Silicon optimized) |
-| Testing | XCTest — 42 unit tests |
+| Testing | XCTest — 58 unit tests |
 | Build | Swift Package Manager |
 
 ## Privacy & Security
@@ -212,7 +213,7 @@ Contributions are welcome! Please open an issue or pull request.
 git clone https://github.com/RichardTheuws/VOX-app.git
 cd VOX-app
 swift build
-swift test  # 42 tests should pass
+swift test  # 58 tests should pass
 ```
 
 ## License
@@ -224,4 +225,4 @@ MIT License — see [LICENSE](LICENSE)
 Part of the [tools.theuws.com](https://tools.theuws.com) ecosystem.
 
 ---
-Version 0.7.1
+Version 0.8.0

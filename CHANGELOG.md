@@ -5,6 +5,23 @@ All notable changes to VOX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.0] - 2026-02-11
+
+### Added
+- **Sound Pack Store**: Search and install game sounds directly from within VOX. Browse MyInstants for sounds (WarCraft, Mario, Zelda, etc.), preview them, and build custom sound packs — no manual file management needed.
+- **SoundPackStore service**: New async service with direct HTML scraping of MyInstants.com — search results parsing, lazy MP3 URL resolution from detail pages, staging system with success/error categories, batch download with progress tracking, and URL caching.
+- **SoundPackInstallerView**: Full installer UI as a sheet in Settings → TTS — search bar with suggestion chips, scrollable results with preview (▶) and category (+Success/+Error) buttons, pack builder with two-column layout, pack naming, and install button with progress bar.
+- **"Browse & Install Sounds…" button**: New button in Settings → TTS → Notice Sound Pack section opens the installer sheet.
+- **Copyright disclaimer**: "Sounds may be copyrighted. For personal use only." shown in installer header.
+- **16 new tests**: HTML parsing (search results, MP3 URLs, deduplication, full URLs, empty HTML), staging logic (add/remove, duplicates, categories, clear), filename sanitization (special chars, truncation, whitespace), empty search handling, and MP3 extraction from search pages. Total: 58 tests (was 42).
+
+### Technical
+- `SoundPackStore.swift` — New service: HTML scraping with regex, search + staging + install + preview (~270 lines)
+- `SoundPackInstallerView.swift` — New view: header, search, results list, pack builder sections (~250 lines)
+- `SettingsView.swift` — TTSSettingsTab gains `soundPackStore` property, `showInstaller` state, and sheet presentation
+- `AppState.swift` — Owns new `SoundPackStore` instance, passes to SettingsView
+- `SoundPackStoreTests.swift` — 16 unit tests covering parsing, staging, sanitization
+
 ## [0.7.1] - 2026-02-11
 
 ### Added

@@ -13,7 +13,7 @@ struct SettingsView: View {
             AppsSettingsTab(settings: settings)
                 .tabItem { Label("Apps", systemImage: "app.badge") }
 
-            TTSSettingsTab(settings: settings, soundPackManager: appState.soundPackManager, ttsEngine: appState.ttsEngine)
+            TTSSettingsTab(settings: settings, soundPackManager: appState.soundPackManager, soundPackStore: appState.soundPackStore, ttsEngine: appState.ttsEngine)
                 .tabItem { Label("TTS", systemImage: "speaker.wave.2") }
 
             AdvancedSettingsTab(settings: settings, ollamaService: appState.ollamaService)
@@ -109,7 +109,10 @@ struct AppsSettingsTab: View {
 struct TTSSettingsTab: View {
     @ObservedObject var settings: VoxSettings
     @ObservedObject var soundPackManager: SoundPackManager
+    @ObservedObject var soundPackStore: SoundPackStore
     let ttsEngine: TTSEngine
+
+    @State private var showInstaller = false
 
     var body: some View {
         Form {
@@ -168,6 +171,18 @@ struct TTSSettingsTab: View {
                                 .tag(pack.name)
                         }
                     }
+                }
+
+                Button("Browse & Install Sounds…") {
+                    showInstaller = true
+                }
+                .buttonStyle(.bordered)
+                .sheet(isPresented: $showInstaller) {
+                    SoundPackInstallerView(
+                        store: soundPackStore,
+                        soundPackManager: soundPackManager,
+                        ttsEngine: ttsEngine
+                    )
                 }
 
                 DisclosureGroup("Add your own sound packs") {
