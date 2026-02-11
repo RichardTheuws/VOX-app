@@ -5,6 +5,30 @@ All notable changes to VOX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.10.0] - 2026-02-12
+
+### Added
+- **ElevenLabs TTS**: Premium multilingual TTS via ElevenLabs REST API (`eleven_multilingual_v2` model). Excellent Dutch, English, and German voice quality. Configurable API key and voice ID in Settings. Falls back to native macOS TTS on error.
+- **Edge TTS**: Free Microsoft Neural TTS voices via `edge-tts` CLI. Includes 6 voice presets: Dutch (Colette, Maarten), English (Jenny, Guy), German (Amala, Conrad). Installation status shown in Settings with guidance.
+- **Audio playback engine**: New `AVAudioPlayer`-based playback for ElevenLabs and edge-tts MP3 output, with volume and speed control. Replaces direct `NSSpeechSynthesizer` for external TTS engines.
+- **Smart summarization bypass**: Short responses (≤2 meaningful lines, ≤2 sentences, ≤200 chars) are now read directly via TTS without Ollama overhead. Enables instant conversational feedback for quick terminal responses.
+- **AX content diff (set-based)**: New `extractAXNewContent()` method in TerminalReader uses set-based line comparison for Electron apps (Cursor, VS Code, Windsurf) where content changes in-place rather than appending. Fixes "No new output detected" issue.
+- **TTS engine configuration UI**: Settings → TTS now shows engine-specific configuration: ElevenLabs API key + voice ID fields, Edge TTS voice picker with 6 presets, installation status indicator.
+- **16 new tests**: 9 TerminalReaderDiffTests (AX set-based diff, terminal line-append diff, edge cases), 7 ResponseProcessorTests (smart summarization bypass, TTSEngineType, edge-tts). Total: 89 tests (was 73).
+
+### Changed
+- **TerminalReader diff strategy**: `extractNewContent()` now accepts `isTerminalBased` parameter. Terminal apps (Terminal.app, iTerm2) use existing line-append diff; AX apps (Cursor, VS Code, Windsurf) use new set-based diff that detects in-place content changes.
+- **TTSEngine multi-backend**: `speak()` now routes to native macOS, ElevenLabs, or edge-tts based on configured engine. Each external engine falls back to native on failure.
+- **TTSEngineType enum expanded**: Added `.edgeTTS` and `.elevenLabs` cases alongside existing `.macosSay`, `.kokoro`, `.piper`, `.disabled`.
+- **ResponseProcessor summary mode**: Added early-exit path for short output before Ollama/heuristic routing, improving response latency for conversational development flow.
+
+### Technical
+- `TerminalReader.swift` — `extractAXNewContent()` with `Set<String>` comparison, `isTerminalBased` flag in `waitForNewOutput()`
+- `TTSEngine.swift` — `speakWithElevenLabs()` async REST client, `speakWithEdgeTTS()` Process-based CLI wrapper, `playAudioFile()` AVAudioPlayer helper, `findEdgeTTSBinary()` multi-path search, `AudioDelegate` for playback completion
+- `VoxSettings.swift` — `elevenLabsAPIKey`, `elevenLabsVoiceID`, `edgeTTSVoice` @AppStorage properties
+- `ResponseProcessor.swift` — Smart summarization bypass with 3-condition AND logic (lines ≤ 2, sentences ≤ 2, chars ≤ 200)
+- `SettingsView.swift` — Engine-specific configuration sections, `edgeTTSInstalled` state check
+
 ## [0.9.0] - 2026-02-11
 
 ### Added

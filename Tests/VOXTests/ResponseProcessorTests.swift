@@ -306,6 +306,76 @@ final class ResponseProcessorTests: XCTestCase {
         XCTAssertTrue(response.spokenText!.contains("Done") || response.spokenText!.contains("Klaar"))
     }
 
+    // MARK: - Smart Summarization Bypass
+
+    func testSmartSummarizationSkipsShortOutput() async {
+        // Short output (≤2 sentences) should be read directly, not routed to Ollama
+        let output = "Build succeeded. 42 tests passed."
+        let result = ExecutionResult(output: output, exitCode: 0, duration: 1.0, wasTimeout: false)
+        let response = await processor.process(result, verbosity: .summary, command: "swift test")
+
+        XCTAssertNotNil(response.spokenText)
+        // Short output should be returned cleaned, not summarized
+        XCTAssertTrue(response.spokenText!.contains("Build succeeded"))
+        XCTAssertTrue(response.spokenText!.contains("42 tests"))
+        XCTAssertEqual(response.status, .success)
+    }
+
+    func testSmartSummarizationShortSingleSentence() async {
+        let output = "Done."
+        let result = ExecutionResult(output: output, exitCode: 0, duration: 0.1, wasTimeout: false)
+        let response = await processor.process(result, verbosity: .summary, command: "touch file")
+
+        XCTAssertNotNil(response.spokenText)
+        XCTAssertTrue(response.spokenText!.contains("Done"))
+    }
+
+    func testSmartSummarizationLongOutputUsesHeuristic() async {
+        // Long output (many sentences) should go through summarization, not direct readback
+        let lines = (1...20).map { "Line \($0) of output with some content here." }
+        let output = lines.joined(separator: "\n")
+        let result = ExecutionResult(output: output, exitCode: 0, duration: 1.0, wasTimeout: false)
+        let response = await processor.process(result, verbosity: .summary, command: "cat bigfile")
+
+        XCTAssertNotNil(response.spokenText)
+        // Should be summarized (heuristic fallback since no Ollama)
+        // The heuristic returns first line + count — much shorter than full output
+        XCTAssertTrue(response.spokenText!.count < output.count)
+    }
+
+    func testSmartSummarizationCharCountThreshold() async {
+        // Under 150 chars should be read directly
+        let output = "File created at /tmp/test.txt"
+        let result = ExecutionResult(output: output, exitCode: 0, duration: 0.1, wasTimeout: false)
+        let response = await processor.process(result, verbosity: .summary, command: "touch test")
+
+        XCTAssertNotNil(response.spokenText)
+        XCTAssertTrue(response.spokenText!.contains("File created"))
+    }
+
+    // MARK: - TTS Engine Type
+
+    func testTTSEngineTypeAllCases() {
+        XCTAssertEqual(TTSEngineType.allCases.count, 6)
+        XCTAssertTrue(TTSEngineType.allCases.contains(.edgeTTS))
+        XCTAssertTrue(TTSEngineType.allCases.contains(.elevenLabs))
+    }
+
+    func testEdgeTTSDefaultVoice() {
+        let settings = VoxSettings.shared
+        XCTAssertEqual(settings.edgeTTSVoice, "nl-NL-ColetteNeural")
+    }
+
+    @MainActor func testEdgeTTSBinarySearch() {
+        // Should not crash, returns nil or valid path
+        let path = TTSEngine.findEdgeTTSBinary()
+        if let path = path {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: path))
+        }
+        // isEdgeTTSInstalled should match
+        XCTAssertEqual(TTSEngine.isEdgeTTSInstalled, path != nil)
+    }
+
     func testCustomSoundPackScanning() {
         let manager = SoundPackManager()
 

@@ -36,6 +36,15 @@ final class VoxSettings: ObservableObject {
     @AppStorage("noticeSoundPack") var noticeSoundPack: NoticeSoundPack = .tts
     @AppStorage("customSoundPackName") var customSoundPackName: String = ""
 
+    // MARK: - ElevenLabs
+
+    @AppStorage("elevenLabsAPIKey") var elevenLabsAPIKey: String = ""
+    @AppStorage("elevenLabsVoiceID") var elevenLabsVoiceID: String = ""
+
+    // MARK: - Edge TTS
+
+    @AppStorage("edgeTTSVoice") var edgeTTSVoice: String = "nl-NL-ColetteNeural"
+
     // MARK: - Advanced
 
     @AppStorage("summarizationMethod") var summarizationMethod: SummarizationMethod = .heuristic
@@ -93,9 +102,10 @@ enum ResponseLanguage: String, CaseIterable, Codable {
 
 enum TTSEngineType: String, CaseIterable, Codable {
     case macosSay = "macOS Say"
-    case kokoro = "Kokoro"
-    case piper = "Piper"
-    case elevenLabs = "ElevenLabs"
+    case edgeTTS = "Edge TTS"        // Free, Microsoft Neural voices, excellent Dutch
+    case elevenLabs = "ElevenLabs"   // Paid, premium quality
+    case kokoro = "Kokoro"           // Placeholder for future
+    case piper = "Piper"             // Placeholder for future
     case disabled = "Disabled"
 }
 

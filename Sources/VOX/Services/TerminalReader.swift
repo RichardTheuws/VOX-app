@@ -34,7 +34,7 @@ final class TerminalReader {
         }
     }
 
-    /// Monitor terminal for new output after a Hex transcription.
+    /// Monitor app for new output after a Hex transcription.
     /// Takes an initial snapshot, then polls until output stabilizes.
     /// Returns the NEW output (diff from snapshot).
     func waitForNewOutput(
@@ -47,6 +47,7 @@ final class TerminalReader {
         let startTime = Date()
         var lastContent = initialSnapshot
         var lastChangeTime = Date()
+        let isTerminal = Self.terminalBasedBundleIDs.contains(bundleID)
 
         // Small initial delay to let the command start producing output
         try? await Task.sleep(for: .milliseconds(500))
@@ -63,7 +64,7 @@ final class TerminalReader {
 
             // Content has stabilized (no changes for stabilizeDelay seconds)
             if Date().timeIntervalSince(lastChangeTime) >= stabilizeDelay {
-                let newContent = extractNewContent(before: initialSnapshot, after: lastContent)
+                let newContent = extractNewContent(before: initialSnapshot, after: lastContent, isTerminalBased: isTerminal)
                 if !newContent.isEmpty {
                     return newContent
                 }
@@ -73,9 +74,16 @@ final class TerminalReader {
         }
 
         // Timeout — return whatever new content we have
-        let newContent = extractNewContent(before: initialSnapshot, after: lastContent)
+        let newContent = extractNewContent(before: initialSnapshot, after: lastContent, isTerminalBased: isTerminal)
         return newContent.isEmpty ? nil : newContent
     }
+
+    /// Bundle IDs that use AppleScript (append-only scrollback).
+    /// All other apps use Accessibility API (content changes in-place).
+    private static let terminalBasedBundleIDs: Set<String> = [
+        "com.apple.Terminal",
+        "com.googlecode.iterm2"
+    ]
 
     // MARK: - Private
 
@@ -105,9 +113,21 @@ final class TerminalReader {
         }
     }
 
-    /// Extract new content by diffing before/after terminal snapshots.
-    /// Uses line-by-line comparison for robustness.
-    private func extractNewContent(before: String, after: String) -> String {
+    /// Extract new content by diffing before/after snapshots.
+    /// Terminal apps grow line-by-line (append-only scrollback).
+    /// AX apps (Cursor, VS Code, Windsurf) may change content in-place.
+    func extractNewContent(before: String, after: String, isTerminalBased: Bool) -> String {
+        if before == after { return "" }
+
+        if !isTerminalBased {
+            return extractAXNewContent(before: before, after: after)
+        }
+
+        return extractTerminalNewContent(before: before, after: after)
+    }
+
+    /// Terminal-specific diff: content grows by appending new lines.
+    private func extractTerminalNewContent(before: String, after: String) -> String {
         let beforeLines = before.components(separatedBy: .newlines)
         let afterLines = after.components(separatedBy: .newlines)
 
@@ -135,5 +155,32 @@ final class TerminalReader {
         let newLines = Array(afterLines.dropFirst(commonPrefixCount))
         return newLines.joined(separator: "\n")
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// AX-specific diff: content changes in-place rather than appending.
+    /// Uses set comparison to find genuinely new lines.
+    /// Falls back to returning full content if it changed but line-level diff is inconclusive.
+    private func extractAXNewContent(before: String, after: String) -> String {
+        let beforeLines = Set(
+            before.components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+        )
+        let afterLines = after.components(separatedBy: .newlines)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+
+        // Find lines that are genuinely new (not in the snapshot)
+        let newLines = afterLines.filter {
+            !beforeLines.contains($0.trimmingCharacters(in: .whitespaces))
+        }
+
+        if !newLines.isEmpty {
+            return newLines.joined(separator: "\n")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        // Content changed but no individual new lines found → return full after content
+        // (ResponseProcessor handles summarization)
+        return after.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

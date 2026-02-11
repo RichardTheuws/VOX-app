@@ -54,7 +54,20 @@ final class ResponseProcessor {
                 duration: result.duration, wasTimeout: result.wasTimeout
             )
 
-            // Try Ollama first, fallback to heuristic
+            // Short responses: read directly, skip Ollama overhead.
+            // For conversational development flow, short answers should be instant.
+            let meaningfulLines = cleaned.components(separatedBy: .newlines)
+                .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            let sentenceCount = cleaned.components(separatedBy: CharacterSet(charactersIn: ".!?"))
+                .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.count
+            if meaningfulLines.count <= 2 && sentenceCount <= 2 && cleaned.count <= 200 {
+                let spoken = cleanForSpeech(cleaned)
+                if !spoken.isEmpty {
+                    return ProcessedResponse(spokenText: spoken, status: result.isSuccess ? .success : .error)
+                }
+            }
+
+            // Long responses: try Ollama first, fallback to heuristic
             if settings.summarizationMethod == .ollama,
                let ollama = ollamaService,
                await ollama.isServerRunning {

@@ -206,6 +206,7 @@ struct TTSSettingsTab: View {
     let ttsEngine: TTSEngine
 
     @State private var showInstaller = false
+    @State private var edgeTTSInstalled = TTSEngine.isEdgeTTSInstalled
 
     var body: some View {
         Form {
@@ -233,6 +234,48 @@ struct TTSSettingsTab: View {
                 }
 
                 Toggle("Interrupt on new command", isOn: $settings.interruptOnNewCommand)
+            }
+
+            // Engine-specific configuration
+            if settings.ttsEngine == .elevenLabs {
+                Section("ElevenLabs") {
+                    SecureField("API Key", text: $settings.elevenLabsAPIKey)
+                    TextField("Voice ID (optional)", text: $settings.elevenLabsVoiceID)
+                    Text("Default: Rachel (multilingual). Browse voices at elevenlabs.io")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            if settings.ttsEngine == .edgeTTS {
+                Section("Edge TTS") {
+                    Picker("Voice", selection: $settings.edgeTTSVoice) {
+                        Text("Colette (NL vrouw)").tag("nl-NL-ColetteNeural")
+                        Text("Maarten (NL man)").tag("nl-NL-MaartenNeural")
+                        Text("Jenny (EN vrouw)").tag("en-US-JennyNeural")
+                        Text("Guy (EN man)").tag("en-US-GuyNeural")
+                        Text("Amala (DE vrouw)").tag("de-DE-AmalaNeural")
+                        Text("Conrad (DE man)").tag("de-DE-ConradNeural")
+                    }
+
+                    if !edgeTTSInstalled {
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle")
+                                .foregroundColor(.orange)
+                            Text("edge-tts not found. Install via: pip3 install edge-tts")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                        }
+                    } else {
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.statusGreen)
+                            Text("edge-tts installed")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
             }
 
             Section("Notice Sound Pack") {

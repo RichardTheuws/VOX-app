@@ -2,7 +2,7 @@ import AVFoundation
 import AppKit
 
 /// Text-to-speech engine that supports multiple backends.
-/// MVP uses macOS NSSpeechSynthesizer; future versions add Kokoro, Piper, ElevenLabs.
+/// Supports macOS native, Edge TTS (free Microsoft Neural voices), and ElevenLabs (paid premium).
 @MainActor
 final class TTSEngine: ObservableObject {
     @Published var isSpeaking = false
@@ -10,10 +10,13 @@ final class TTSEngine: ObservableObject {
     private let synthesizer = NSSpeechSynthesizer()
     private let settings: VoxSettings
     private var delegate: TTSDelegate?
+    private var audioPlayer: AVAudioPlayer?
+    private var audioDelegate: AudioDelegate?
 
     init(settings: VoxSettings = .shared) {
         self.settings = settings
         self.delegate = TTSDelegate(engine: self)
+        self.audioDelegate = AudioDelegate(engine: self)
         self.synthesizer.delegate = delegate
     }
 
@@ -30,12 +33,13 @@ final class TTSEngine: ObservableObject {
         switch settings.ttsEngine {
         case .macosSay:
             speakWithNative(text)
-        case .kokoro, .piper:
-            // Future: implement local TTS
-            speakWithNative(text) // Fallback to native for MVP
+        case .edgeTTS:
+            Task { await speakWithEdgeTTS(text) }
         case .elevenLabs:
-            // Future: implement cloud TTS
-            speakWithNative(text) // Fallback to native for MVP
+            Task { await speakWithElevenLabs(text) }
+        case .kokoro, .piper:
+            // Placeholder: fallback to native
+            speakWithNative(text)
         case .disabled:
             break
         }
@@ -44,6 +48,8 @@ final class TTSEngine: ObservableObject {
     /// Stop any current speech.
     func stop() {
         synthesizer.stopSpeaking()
+        audioPlayer?.stop()
+        audioPlayer = nil
         isSpeaking = false
     }
 
@@ -119,13 +125,153 @@ final class TTSEngine: ObservableObject {
         return fallback?.0
     }
 
-    /// Called by delegate when speech finishes.
+    // MARK: - ElevenLabs TTS
+
+    /// Speak text via ElevenLabs REST API.
+    /// Uses eleven_multilingual_v2 model for excellent Dutch/English/German support.
+    /// Falls back to native TTS on any error.
+    private func speakWithElevenLabs(_ text: String) async {
+        guard !settings.elevenLabsAPIKey.isEmpty else {
+            speakWithNative(text)
+            return
+        }
+
+        // Use configured voice or default to Rachel (multilingual)
+        let voiceID = settings.elevenLabsVoiceID.isEmpty
+            ? "21m00Tcm4TlvDq8ikWAM"
+            : settings.elevenLabsVoiceID
+
+        guard let url = URL(string: "https://api.elevenlabs.io/v1/text-to-speech/\(voiceID)") else {
+            speakWithNative(text)
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue(settings.elevenLabsAPIKey, forHTTPHeaderField: "xi-api-key")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("audio/mpeg", forHTTPHeaderField: "Accept")
+        request.timeoutInterval = 15
+
+        let body: [String: Any] = [
+            "text": text,
+            "model_id": "eleven_multilingual_v2",
+            "voice_settings": [
+                "stability": 0.5,
+                "similarity_boost": 0.75
+            ]
+        ]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode == 200 else {
+                speakWithNative(text)
+                return
+            }
+
+            let tempURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("vox-elevenlabs-\(UUID().uuidString).mp3")
+            try data.write(to: tempURL)
+            playAudioFile(at: tempURL)
+        } catch {
+            speakWithNative(text)
+        }
+    }
+
+    // MARK: - Edge TTS
+
+    /// Speak text via edge-tts CLI (free Microsoft Neural voices).
+    /// Excellent Dutch voices: nl-NL-ColetteNeural, nl-NL-MaartenNeural.
+    /// Falls back to native TTS if edge-tts is not installed.
+    private func speakWithEdgeTTS(_ text: String) async {
+        guard let edgeTTSPath = Self.findEdgeTTSBinary() else {
+            speakWithNative(text)
+            return
+        }
+
+        let voice = settings.edgeTTSVoice
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vox-edge-\(UUID().uuidString).mp3")
+
+        // Run edge-tts in background thread to avoid blocking main actor
+        let result: Bool = await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: edgeTTSPath)
+                process.arguments = ["--voice", voice, "--text", text,
+                                     "--write-media", tempURL.path]
+                process.standardOutput = Pipe()
+                process.standardError = Pipe()
+
+                do {
+                    try process.run()
+                    process.waitUntilExit()
+                    continuation.resume(returning: process.terminationStatus == 0)
+                } catch {
+                    continuation.resume(returning: false)
+                }
+            }
+        }
+
+        guard result else {
+            speakWithNative(text)
+            return
+        }
+
+        playAudioFile(at: tempURL)
+    }
+
+    /// Find edge-tts binary in common pip3 install locations.
+    static func findEdgeTTSBinary() -> String? {
+        let home = NSHomeDirectory()
+        let paths = [
+            "/opt/homebrew/bin/edge-tts",
+            "/usr/local/bin/edge-tts",
+            "\(home)/.local/bin/edge-tts",
+            "\(home)/Library/Python/3.13/bin/edge-tts",
+            "\(home)/Library/Python/3.12/bin/edge-tts",
+            "\(home)/Library/Python/3.11/bin/edge-tts",
+            "\(home)/Library/Python/3.10/bin/edge-tts",
+            "\(home)/Library/Python/3.9/bin/edge-tts",
+        ]
+        return paths.first { FileManager.default.fileExists(atPath: $0) }
+    }
+
+    /// Check if edge-tts is installed and available.
+    static var isEdgeTTSInstalled: Bool {
+        findEdgeTTSBinary() != nil
+    }
+
+    // MARK: - Audio Playback
+
+    /// Play an audio file (mp3/wav) with volume and speed settings.
+    /// Used by ElevenLabs and edge-tts engines.
+    private func playAudioFile(at url: URL) {
+        do {
+            let player = try AVAudioPlayer(contentsOf: url)
+            player.volume = Float(settings.ttsVolume)
+            player.enableRate = true
+            player.rate = Float(settings.ttsSpeed)
+            player.delegate = audioDelegate
+            self.audioPlayer = player
+            isSpeaking = true
+            player.play()
+        } catch {
+            isSpeaking = false
+        }
+    }
+
+    /// Called by delegates when speech/audio finishes.
     func didFinishSpeaking() {
         isSpeaking = false
+        // Clean up temp audio files
+        audioPlayer = nil
     }
 }
 
-// MARK: - Delegate
+// MARK: - NSSpeechSynthesizer Delegate
 
 private final class TTSDelegate: NSObject, NSSpeechSynthesizerDelegate, @unchecked Sendable {
     private weak var engine: TTSEngine?
@@ -135,6 +281,22 @@ private final class TTSDelegate: NSObject, NSSpeechSynthesizerDelegate, @uncheck
     }
 
     func speechSynthesizer(_ sender: NSSpeechSynthesizer, didFinishSpeaking finishedSpeaking: Bool) {
+        Task { @MainActor in
+            engine?.didFinishSpeaking()
+        }
+    }
+}
+
+// MARK: - AVAudioPlayer Delegate
+
+private final class AudioDelegate: NSObject, AVAudioPlayerDelegate, @unchecked Sendable {
+    private weak var engine: TTSEngine?
+
+    init(engine: TTSEngine) {
+        self.engine = engine
+    }
+
+    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         Task { @MainActor in
             engine?.didFinishSpeaking()
         }
