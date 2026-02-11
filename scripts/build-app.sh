@@ -53,9 +53,9 @@ mkdir -p "${APP_BUNDLE}/Contents/Resources"
 # Step 4: Copy binary
 cp "$BINARY" "${APP_BUNDLE}/Contents/MacOS/VOX"
 
-# Step 5: Copy Info.plist (with version injected)
-sed "s|<string>0.2.0</string>|<string>${VERSION}</string>|" \
-    "${PROJECT_DIR}/Assets/Info.plist" > "${APP_BUNDLE}/Contents/Info.plist"
+# Step 5: Copy Info.plist and inject version from VERSION file
+cp "${PROJECT_DIR}/Assets/Info.plist" "${APP_BUNDLE}/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${VERSION}" "${APP_BUNDLE}/Contents/Info.plist"
 
 # Step 6: Copy icon
 cp "${PROJECT_DIR}/Assets/AppIcon.icns" "${APP_BUNDLE}/Contents/Resources/AppIcon.icns"

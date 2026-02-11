@@ -28,8 +28,6 @@
     <string>14.0</string>
     <key>LSUIElement</key>
     <true/>
-    <key>NSMicrophoneUsageDescription</key>
-    <string>VOX needs microphone access to hear your voice commands.</string>
     <key>NSHumanReadableCopyright</key>
     <string>Copyright © 2026 Theuws Development. MIT License.</string>
     <key>NSHighResolutionCapable</key>
