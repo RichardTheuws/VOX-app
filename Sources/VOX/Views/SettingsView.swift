@@ -63,6 +63,8 @@ struct AppsSettingsTab: View {
     @ObservedObject var settings: VoxSettings
 
     @State private var isAccessibilityGranted = AccessibilityReader.isAccessibilityGranted()
+    @State private var permissionCheckTimer: Timer?
+    @State private var showRestartHint = false
 
     var body: some View {
         Form {
@@ -80,13 +82,17 @@ struct AppsSettingsTab: View {
                     } else {
                         Button("Grant Permission") {
                             AccessibilityReader.requestAccessibilityPermission()
-                            // Refresh after a short delay to pick up the new state
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                                isAccessibilityGranted = AccessibilityReader.isAccessibilityGranted()
-                            }
+                            // Poll every 2 seconds for up to 30 seconds after granting
+                            startPermissionPolling()
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
+
+                        Button("Refresh") {
+                            isAccessibilityGranted = AccessibilityReader.isAccessibilityGranted()
+                        }
+                        .buttonStyle(.borderless)
+                        .font(.caption)
                     }
                 }
 
@@ -94,6 +100,17 @@ struct AppsSettingsTab: View {
                     Text("Required to monitor Cursor, VS Code and Windsurf. Not needed for Terminal or iTerm2.")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                }
+
+                if showRestartHint && !isAccessibilityGranted {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                        Text("Permission granted in System Settings? Restart VOX to activate.")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                    }
                 }
             }
 
@@ -137,6 +154,34 @@ struct AppsSettingsTab: View {
         .onAppear {
             // Always check fresh — never rely on cached permission state
             isAccessibilityGranted = AccessibilityReader.isAccessibilityGranted()
+        }
+        .onDisappear {
+            permissionCheckTimer?.invalidate()
+            permissionCheckTimer = nil
+        }
+    }
+
+    /// Poll AXIsProcessTrusted() every 2s after the user clicks "Grant Permission".
+    /// macOS may not reflect the change immediately — and sometimes requires an app restart.
+    private func startPermissionPolling() {
+        permissionCheckTimer?.invalidate()
+        var attempts = 0
+        permissionCheckTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { timer in
+            attempts += 1
+            let granted = AccessibilityReader.isAccessibilityGranted()
+            DispatchQueue.main.async {
+                isAccessibilityGranted = granted
+                if granted {
+                    timer.invalidate()
+                    permissionCheckTimer = nil
+                    showRestartHint = false
+                } else if attempts >= 5 {
+                    // After 10 seconds, show restart hint — macOS often requires it
+                    showRestartHint = true
+                    timer.invalidate()
+                    permissionCheckTimer = nil
+                }
+            }
         }
     }
 
