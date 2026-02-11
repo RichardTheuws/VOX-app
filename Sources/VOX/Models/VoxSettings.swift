@@ -12,13 +12,6 @@ final class VoxSettings: ObservableObject {
     @AppStorage("inputLanguage") var inputLanguage: InputLanguage = .autoDetect
     @AppStorage("responseLanguage") var responseLanguage: ResponseLanguage = .followInput
 
-    // MARK: - Voice Input (STT)
-
-    @AppStorage("sttEngine") var sttEngine: STTEngine = .hex
-    @AppStorage("activationMode") var activationMode: ActivationMode = .pushToTalk
-    @AppStorage("whisperModel") var whisperModel: WhisperModel = .largev3
-    @AppStorage("pushToTalkHotkey") var pushToTalkHotkey: PushToTalkHotkey = .controlSpace
-
     // MARK: - TTS Output
 
     @AppStorage("ttsEngine") var ttsEngine: TTSEngineType = .macosSay
@@ -46,7 +39,6 @@ final class VoxSettings: ObservableObject {
     @AppStorage("maxSummaryLength") var maxSummaryLength = 2
     @AppStorage("commandTimeout") var commandTimeout: Double = 30
     @AppStorage("maxOutputCapture") var maxOutputCapture = 10000
-    @AppStorage("confirmDestructive") var confirmDestructive = true
     @AppStorage("logToFile") var logToFile = false
 
     // MARK: - State
@@ -94,11 +86,6 @@ enum ResponseLanguage: String, CaseIterable, Codable {
     case dutch = "Nederlands"
 }
 
-enum STTEngine: String, CaseIterable, Codable {
-    case hex = "Hex"
-    case builtIn = "Built-in (WhisperKit)"
-}
-
 enum TTSEngineType: String, CaseIterable, Codable {
     case macosSay = "macOS Say"
     case kokoro = "Kokoro"
@@ -107,82 +94,9 @@ enum TTSEngineType: String, CaseIterable, Codable {
     case disabled = "Disabled"
 }
 
-enum ActivationMode: String, CaseIterable, Codable {
-    case pushToTalk = "Push-to-talk"
-    case pushToToggle = "Push-to-toggle"
-    case wakeWord = "Wake word"
-    case alwaysListening = "Always listening"
-}
-
-enum WhisperModel: String, CaseIterable, Codable {
-    case tiny = "tiny"
-    case base = "base"
-    case small = "small"
-    case medium = "medium"
-    case largev3 = "large-v3"
-
-    var displayName: String {
-        switch self {
-        case .tiny: "Tiny (fastest, least accurate)"
-        case .base: "Base (fast, good accuracy)"
-        case .small: "Small (balanced)"
-        case .medium: "Medium (accurate, slower)"
-        case .largev3: "Large v3 (most accurate)"
-        }
-    }
-
-    var estimatedRAM: String {
-        switch self {
-        case .tiny: "~75MB"
-        case .base: "~150MB"
-        case .small: "~500MB"
-        case .medium: "~1.0GB"
-        case .largev3: "~1.5GB"
-        }
-    }
-}
-
 enum SummarizationMethod: String, CaseIterable, Codable {
     case heuristic = "Heuristic"
     case ollama = "Ollama"
     case claudeAPI = "Claude API"
     case openaiAPI = "OpenAI API"
-}
-
-/// Hotkey presets for push-to-talk activation.
-enum PushToTalkHotkey: String, CaseIterable, Codable {
-    case controlSpace = "Control+Space"
-    case optionSpace = "Option+Space"
-    case commandShiftV = "Command+Shift+V"
-    case fnSpace = "Fn+Space"
-
-    var displayName: String { rawValue }
-
-    /// The modifier flags this hotkey uses.
-    var modifierFlags: CGEventFlags {
-        switch self {
-        case .controlSpace: return .maskControl
-        case .optionSpace: return .maskAlternate
-        case .commandShiftV: return [.maskCommand, .maskShift]
-        case .fnSpace: return .maskSecondaryFn
-        }
-    }
-
-    /// The key code to match.
-    var keyCode: UInt16 {
-        switch self {
-        case .controlSpace, .optionSpace, .fnSpace: return 49 // Space
-        case .commandShiftV: return 9 // V
-        }
-    }
-
-    /// Short display for menu bar.
-    var shortLabel: String {
-        switch self {
-        case .controlSpace: return "⌃Space"
-        case .optionSpace: return "⌥Space"
-        case .commandShiftV: return "⌘⇧V"
-        case .fnSpace: return "FnSpace"
-        }
-    }
 }

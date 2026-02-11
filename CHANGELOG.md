@@ -5,6 +5,30 @@ All notable changes to VOX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] - 2026-02-11
+
+### Changed
+- **VOX is now a pure Hex companion**: Stripped all push-to-talk, command execution, and accessibility code. VOX only monitors terminal output and reads it back via TTS.
+- **Onboarding simplified from 6 → 3 steps**: (1) Hex install, (2) TTS engine, (3) Voice test. Removed Accessibility, Microphone, and Hotkey Selection steps.
+- **Menu bar icon**: Changed from microphone to ear — VOX is a listener, not a speaker.
+- **Settings simplified**: Removed Voice tab (STT engine picker, activation mode), Keyboard Shortcuts section, Routing section, and Safety section. Renamed "Command timeout" to "Monitor timeout".
+
+### Removed
+- **HotkeyManager** (214 lines): CGEventTap push-to-talk system — Hex handles all voice input.
+- **CommandRouter** (130 lines): Command routing/interpretation — VOX no longer executes commands.
+- **TerminalExecutor** (114 lines): Shell command execution via Process API — VOX only reads terminal output.
+- **SafetyChecker** (107 lines): Destructive command detection — nothing to check when not executing.
+- **PushToTalkOverlay** (80 lines): Floating listening HUD — no more push-to-talk.
+- **DestructiveConfirmView** (113 lines): Destructive command confirm dialog — no more safety checks.
+- **AppMode cases**: `.listening`, `.processing`, `.confirmingDestructive` — simplified to `.idle` and `.monitoring`.
+- **Settings**: `pushToTalkHotkey`, `sttEngine`, `activationMode`, `whisperModel`, `confirmDestructive` properties and related enums (`PushToTalkHotkey`, `STTEngine`, `ActivationMode`, `WhisperModel`).
+- **58 tests** removed with deleted services: CommandRouterTests (12), TerminalExecutorTests (12), SafetyCheckerTests (25), IntegrationTests (9).
+
+### Technical
+- `ExecutionResult` struct moved from deleted `TerminalExecutor.swift` to `ResponseProcessor.swift`
+- AppState stripped from ~600 to ~290 lines — removed 5 services, 3 window managers, 10+ methods
+- Net code reduction: ~1,500+ lines removed across 16 files
+
 ## [0.5.0] - 2026-02-11
 
 ### Added

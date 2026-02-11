@@ -10,9 +10,6 @@ struct SettingsView: View {
             GeneralSettingsTab(settings: settings)
                 .tabItem { Label("General", systemImage: "gear") }
 
-            VoiceSettingsTab(settings: settings, appState: appState)
-                .tabItem { Label("Voice", systemImage: "mic") }
-
             AppsSettingsTab(settings: settings)
                 .tabItem { Label("Apps", systemImage: "app.badge") }
 
@@ -42,28 +39,6 @@ struct GeneralSettingsTab: View {
                 }
             }
 
-            Section("Keyboard Shortcuts") {
-                Picker("Push-to-talk", selection: $settings.pushToTalkHotkey) {
-                    ForEach(PushToTalkHotkey.allCases, id: \.self) { hotkey in
-                        Text(hotkey.displayName).tag(hotkey)
-                    }
-                }
-                HStack {
-                    Text("Cycle verbosity")
-                    Spacer()
-                    Text("⌥V")
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundColor(.secondary)
-                }
-                HStack {
-                    Text("Cancel command")
-                    Spacer()
-                    Text("Escape")
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundColor(.secondary)
-                }
-            }
-
             Section("Language") {
                 Picker("Input language", selection: $settings.inputLanguage) {
                     ForEach(InputLanguage.allCases, id: \.self) { lang in
@@ -73,53 +48,6 @@ struct GeneralSettingsTab: View {
                 Picker("Response language", selection: $settings.responseLanguage) {
                     ForEach(ResponseLanguage.allCases, id: \.self) { lang in
                         Text(lang.rawValue).tag(lang)
-                    }
-                }
-            }
-        }
-        .formStyle(.grouped)
-        .padding()
-    }
-}
-
-// MARK: - Voice Tab
-
-struct VoiceSettingsTab: View {
-    @ObservedObject var settings: VoxSettings
-    @ObservedObject var appState: AppState
-
-    var body: some View {
-        Form {
-            Section("Speech-to-Text Engine") {
-                Picker("Engine", selection: $settings.sttEngine) {
-                    ForEach(STTEngine.allCases, id: \.self) { engine in
-                        Text(engine.rawValue).tag(engine)
-                    }
-                }
-
-                if settings.sttEngine == .hex {
-                    HStack {
-                        Text("Hex Status")
-                        Spacer()
-                        Circle()
-                            .fill(appState.hexBridge.isHexRunning ? Color.statusGreen : Color.statusRed)
-                            .frame(width: 8, height: 8)
-                        Text(appState.hexBridge.isHexRunning ? "Connected" : "Not running")
-                            .foregroundColor(.secondary)
-                    }
-
-                    if !appState.hexBridge.isHexRunning {
-                        Button("Launch Hex") {
-                            appState.hexBridge.launchHex()
-                        }
-                    }
-                }
-            }
-
-            Section("Activation Mode") {
-                Picker("Mode", selection: $settings.activationMode) {
-                    ForEach(ActivationMode.allCases, id: \.self) { mode in
-                        Text(mode.rawValue).tag(mode)
                     }
                 }
             }
@@ -159,18 +87,6 @@ struct AppsSettingsTab: View {
                 }
             }
 
-            Section("Routing") {
-                Picker("Default target", selection: $settings.defaultTarget) {
-                    ForEach(TargetApp.allCases) { app in
-                        Text(app.rawValue).tag(app)
-                    }
-                }
-                Picker("Fallback target", selection: $settings.fallbackTarget) {
-                    ForEach(TargetApp.allCases) { app in
-                        Text(app.rawValue).tag(app)
-                    }
-                }
-            }
         }
         .formStyle(.grouped)
         .padding()
@@ -264,18 +180,14 @@ struct AdvancedSettingsTab: View {
                 }
             }
 
-            Section("Terminal") {
+            Section("Terminal Monitoring") {
                 HStack {
-                    Text("Command timeout")
+                    Text("Monitor timeout")
                     Slider(value: $settings.commandTimeout, in: 5...120, step: 5)
                     Text("\(Int(settings.commandTimeout))s")
                         .frame(width: 40)
                         .foregroundColor(.secondary)
                 }
-            }
-
-            Section("Safety") {
-                Toggle("Confirm destructive commands", isOn: $settings.confirmDestructive)
             }
 
             Section("Logging") {

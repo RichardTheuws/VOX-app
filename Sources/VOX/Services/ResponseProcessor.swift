@@ -221,6 +221,16 @@ struct ProcessedResponse {
     let status: CommandStatus
 }
 
+/// Result from terminal monitoring (or command execution).
+struct ExecutionResult {
+    let output: String
+    let exitCode: Int32
+    let duration: TimeInterval
+    let wasTimeout: Bool
+
+    var isSuccess: Bool { exitCode == 0 }
+}
+
 // Allow VerbosityLevel to be compared
 extension VerbosityLevel: Comparable {
     static func < (lhs: VerbosityLevel, rhs: VerbosityLevel) -> Bool {

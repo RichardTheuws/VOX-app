@@ -1,24 +1,19 @@
 import SwiftUI
-import AVFoundation
 
 /// First-run onboarding wizard.
+/// VOX is a Hex companion — 3 simple steps: Hex, TTS, Test.
 struct OnboardingView: View {
     @ObservedObject var appState: AppState
     @State private var currentStep = 0
-    @State private var accessibilityGranted = false
-    @State private var micAccessGranted = false
     @State private var hexDetected = false
     @State private var ttsTestPassed = false
     @State private var selectedTTS: TTSEngineType = .macosSay
-    @State private var selectedHotkey: PushToTalkHotkey = .controlSpace
     // Voice test state
     @State private var isTestListening = false
     @State private var testTranscription: String?
     @State private var voiceTestPassed = false
-    // Accessibility polling timer
-    @State private var accessibilityTimer: Timer?
 
-    private let totalSteps = 6
+    private let totalSteps = 3
 
     let onComplete: () -> Void
 
@@ -28,7 +23,7 @@ struct OnboardingView: View {
             VStack(spacing: 8) {
                 Text("VOX")
                     .font(.custom("Titillium Web", size: 36).bold())
-                Text("Voice-Operated eXecution")
+                Text("Talk to your terminal. Hear what matters.")
                     .font(.custom("Inter", size: 14))
                     .foregroundColor(.secondary)
             }
@@ -49,12 +44,9 @@ struct OnboardingView: View {
             ScrollView {
                 Group {
                     switch currentStep {
-                    case 0: accessibilityStep
-                    case 1: microphoneStep
-                    case 2: hexStep
-                    case 3: hotkeyStep
-                    case 4: ttsStep
-                    case 5: voiceTestStep
+                    case 0: hexStep
+                    case 1: ttsStep
+                    case 2: voiceTestStep
                     default: EmptyView()
                     }
                 }
@@ -75,7 +67,6 @@ struct OnboardingView: View {
                     Button("Start Using VOX") {
                         appState.settings.hasCompletedOnboarding = true
                         appState.settings.ttsEngine = selectedTTS
-                        appState.settings.pushToTalkHotkey = selectedHotkey
                         onComplete()
                     }
                     .buttonStyle(.borderedProminent)
@@ -85,87 +76,10 @@ struct OnboardingView: View {
             .padding(.bottom, 12)
         }
         .padding(24)
-        .frame(width: 420, height: 560)
-        .onAppear {
-            checkAccessibility()
-            checkMicAccess()
-            selectedHotkey = appState.settings.pushToTalkHotkey
-        }
+        .frame(width: 420, height: 480)
     }
 
-    // MARK: - Step 1: Accessibility
-
-    private var accessibilityStep: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "hand.raised.circle.fill")
-                .font(.system(size: 48))
-                .foregroundColor(.accentBlue)
-
-            Text("Step 1/\(totalSteps): Accessibility Access")
-                .font(.headline)
-
-            Text("VOX needs Accessibility access to capture global hotkeys for push-to-talk.")
-                .multilineTextAlignment(.center)
-                .foregroundColor(.secondary)
-                .font(.callout)
-
-            if accessibilityGranted {
-                Label("Accessibility access granted", systemImage: "checkmark.circle.fill")
-                    .foregroundColor(.statusGreen)
-            } else {
-                VStack(spacing: 10) {
-                    Button("Request Accessibility Access") {
-                        requestAccessibility()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.accentBlue)
-
-                    Button("Open System Settings") {
-                        openAccessibilitySettings()
-                    }
-                    .buttonStyle(.bordered)
-
-                    Text("After enabling in System Settings, VOX will detect it automatically.\nNote: After each rebuild, you may need to re-grant access.")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                }
-            }
-        }
-        .onAppear { startAccessibilityPolling() }
-        .onDisappear { stopAccessibilityPolling() }
-    }
-
-    // MARK: - Step 2: Microphone
-
-    private var microphoneStep: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "mic.circle.fill")
-                .font(.system(size: 48))
-                .foregroundColor(.accentBlue)
-
-            Text("Step 2/\(totalSteps): Microphone Access")
-                .font(.headline)
-
-            Text("VOX needs microphone access to hear your voice commands.")
-                .multilineTextAlignment(.center)
-                .foregroundColor(.secondary)
-                .font(.callout)
-
-            if micAccessGranted {
-                Label("Microphone access granted", systemImage: "checkmark.circle.fill")
-                    .foregroundColor(.statusGreen)
-            } else {
-                Button("Grant Access") {
-                    requestMicAccess()
-                }
-                .buttonStyle(.bordered)
-            }
-        }
-    }
-
-    // MARK: - Step 3: Hex
+    // MARK: - Step 1: Hex
 
     private var hexStep: some View {
         VStack(spacing: 16) {
@@ -173,10 +87,10 @@ struct OnboardingView: View {
                 .font(.system(size: 48))
                 .foregroundColor(.accentBlue)
 
-            Text("Step 3/\(totalSteps): Install Hex")
+            Text("Step 1/\(totalSteps): Install Hex")
                 .font(.headline)
 
-            Text("VOX uses **Hex** for on-device speech recognition.\nNo data leaves your Mac.")
+            Text("VOX uses **Hex** for on-device speech recognition.\nHex dictates into Terminal, VOX reads the response back.\nNo data leaves your Mac.")
                 .multilineTextAlignment(.center)
                 .foregroundColor(.secondary)
                 .font(.callout)
@@ -206,49 +120,7 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: - Step 4: Hotkey Selection
-
-    private var hotkeyStep: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "keyboard.circle.fill")
-                .font(.system(size: 48))
-                .foregroundColor(.accentBlue)
-
-            Text("Step 4/\(totalSteps): Choose Push-to-Talk Hotkey")
-                .font(.headline)
-
-            Text("Hold this key combo to talk to VOX.\nRelease to execute the command.")
-                .multilineTextAlignment(.center)
-                .foregroundColor(.secondary)
-                .font(.callout)
-
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(PushToTalkHotkey.allCases, id: \.self) { hotkey in
-                    TTSOptionRow(
-                        title: hotkey.displayName,
-                        subtitle: hotkeyDescription(hotkey),
-                        isSelected: selectedHotkey == hotkey,
-                        action: { selectedHotkey = hotkey }
-                    )
-                }
-            }
-
-            Text("You can change this later in Settings.")
-                .font(.caption2)
-                .foregroundColor(.secondary)
-        }
-    }
-
-    private func hotkeyDescription(_ hotkey: PushToTalkHotkey) -> String {
-        switch hotkey {
-        case .controlSpace: return "Recommended — doesn't conflict with Spotlight or IME"
-        case .optionSpace: return "Classic — may type special characters in some apps"
-        case .commandShiftV: return "Safe — unlikely to conflict with other shortcuts"
-        case .fnSpace: return "Minimal — uses the Fn/Globe key"
-        }
-    }
-
-    // MARK: - Step 5: TTS Engine
+    // MARK: - Step 2: TTS Engine
 
     private var ttsStep: some View {
         VStack(spacing: 16) {
@@ -256,8 +128,13 @@ struct OnboardingView: View {
                 .font(.system(size: 48))
                 .foregroundColor(.accentBlue)
 
-            Text("Step 5/\(totalSteps): Choose TTS Engine")
+            Text("Step 2/\(totalSteps): Choose TTS Engine")
                 .font(.headline)
+
+            Text("VOX reads terminal output back to you.\nChoose how it should sound.")
+                .multilineTextAlignment(.center)
+                .foregroundColor(.secondary)
+                .font(.callout)
 
             VStack(alignment: .leading, spacing: 8) {
                 TTSOptionRow(
@@ -295,7 +172,7 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: - Step 6: Voice Test
+    // MARK: - Step 3: Voice Test
 
     private var voiceTestStep: some View {
         VStack(spacing: 16) {
@@ -303,7 +180,7 @@ struct OnboardingView: View {
                 .font(.system(size: 48))
                 .foregroundColor(voiceTestPassed ? .statusGreen : .accentBlue)
 
-            Text("Step 6/\(totalSteps): Test Your Voice")
+            Text("Step 3/\(totalSteps): Test Your Setup")
                 .font(.headline)
 
             // Hex status indicator
@@ -332,17 +209,17 @@ struct OnboardingView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(alignment: .top, spacing: 8) {
                             Text("1.").font(.caption.bold()).foregroundColor(.accentBlue)
-                            Text("Use **Hex** to dictate a command (Hex's own hotkey)")
+                            Text("Use **Hex** to dictate into **Terminal.app**")
                                 .font(.caption)
                         }
                         HStack(alignment: .top, spacing: 8) {
                             Text("2.").font(.caption.bold()).foregroundColor(.accentBlue)
-                            Text("VOX detects the transcription automatically")
+                            Text("VOX detects the transcription and monitors Terminal output")
                                 .font(.caption)
                         }
                         HStack(alignment: .top, spacing: 8) {
                             Text("3.").font(.caption.bold()).foregroundColor(.accentBlue)
-                            Text("VOX executes the command and speaks the result")
+                            Text("VOX **reads the response** back to you via TTS")
                                 .font(.caption)
                         }
                     }
@@ -396,40 +273,9 @@ struct OnboardingView: View {
                     .foregroundColor(.statusGreen)
                     .font(.headline)
             }
-
-            // How it works summary
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Your setup:")
-                    .font(.caption.bold())
-                HStack(spacing: 4) {
-                    Text("Hex")
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundColor(.accentBlue)
-                    Text("Dictate → VOX auto-processes")
-                        .font(.caption)
-                }
-                HStack(spacing: 4) {
-                    Text(selectedHotkey.shortLabel)
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundColor(.accentBlue)
-                    Text("Push-to-talk (optional, needs Accessibility)")
-                        .font(.caption)
-                }
-                HStack(spacing: 4) {
-                    Text("⌥V")
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundColor(.accentBlue)
-                    Text("Cycle verbosity")
-                        .font(.caption)
-                }
-            }
-            .padding(8)
-            .background(Color.secondary.opacity(0.1))
-            .clipShape(RoundedRectangle(cornerRadius: 6))
         }
         .onAppear {
             appState.hexBridge.checkHexStatus()
-            // Auto-launch Hex if not running
             if !appState.hexBridge.isHexRunning {
                 appState.hexBridge.launchHex()
             }
@@ -441,7 +287,6 @@ struct OnboardingView: View {
     private func startTestListening() {
         isTestListening = true
         testTranscription = nil
-        // Start monitoring Hex transcription history for new dictations
         appState.hexBridge.checkHexStatus()
         appState.hexBridge.startMonitoring { entry in
             Task { @MainActor in
@@ -450,56 +295,6 @@ struct OnboardingView: View {
                 voiceTestPassed = true
                 appState.hexBridge.stopMonitoring()
                 appState.ttsEngine.speak("I heard: \(entry.text)")
-            }
-        }
-    }
-
-    // MARK: - Helpers
-
-    private func checkAccessibility() {
-        accessibilityGranted = AXIsProcessTrusted()
-    }
-
-    private func requestAccessibility() {
-        // This triggers the system prompt to grant accessibility
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
-        let trusted = AXIsProcessTrustedWithOptions(options)
-        accessibilityGranted = trusted
-    }
-
-    private func openAccessibilitySettings() {
-        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
-        NSWorkspace.shared.open(url)
-    }
-
-    /// Poll accessibility status every 2 seconds while on step 0.
-    private func startAccessibilityPolling() {
-        stopAccessibilityPolling()
-        accessibilityTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
-            Task { @MainActor in
-                accessibilityGranted = AXIsProcessTrusted()
-            }
-        }
-    }
-
-    private func stopAccessibilityPolling() {
-        accessibilityTimer?.invalidate()
-        accessibilityTimer = nil
-    }
-
-    private func checkMicAccess() {
-        switch AVCaptureDevice.authorizationStatus(for: .audio) {
-        case .authorized:
-            micAccessGranted = true
-        default:
-            micAccessGranted = false
-        }
-    }
-
-    private func requestMicAccess() {
-        AVCaptureDevice.requestAccess(for: .audio) { granted in
-            Task { @MainActor in
-                micAccessGranted = granted
             }
         }
     }

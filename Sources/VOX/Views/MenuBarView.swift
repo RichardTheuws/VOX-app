@@ -8,7 +8,7 @@ struct MenuBarView: View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
             HStack {
-                Image(systemName: "mic.fill")
+                Image(systemName: "ear")
                     .foregroundColor(.accentBlue)
                 Text("VOX")
                     .font(.custom("Titillium Web", size: 16).bold())
@@ -81,19 +81,6 @@ struct MenuBarView: View {
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
-                if appState.hotkeyManager.isHotkeyActive {
-                    shortcutRow(keys: appState.settings.pushToTalkHotkey.shortLabel, action: "Push-to-talk")
-                } else {
-                    HStack {
-                        Text(appState.settings.pushToTalkHotkey.shortLabel)
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundColor(.secondary.opacity(0.5))
-                        Text("Push-to-talk (needs Accessibility)")
-                            .font(.caption)
-                            .foregroundColor(.statusOrange)
-                    }
-                }
-                shortcutRow(keys: "⌥V", action: "Cycle verbosity")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
@@ -152,16 +139,6 @@ struct MenuBarView: View {
         }
     }
 
-    private func shortcutRow(keys: String, action: String) -> some View {
-        HStack {
-            Text(keys)
-                .font(.system(.caption, design: .monospaced))
-                .foregroundColor(.accentBlue)
-            Text(action)
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-    }
 }
 
 // MARK: - Brand Colors
