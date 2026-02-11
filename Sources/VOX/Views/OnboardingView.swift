@@ -194,6 +194,13 @@ struct OnboardingView: View {
                 if !appState.hexBridge.isHexRunning {
                     Button("Launch Hex") {
                         appState.hexBridge.launchHex()
+                        // Re-check and start monitoring after launch
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            appState.hexBridge.checkHexStatus()
+                            if appState.hexBridge.isHexRunning && !isTestListening && !voiceTestPassed {
+                                startTestListening()
+                            }
+                        }
                     }
                     .font(.caption)
                     .buttonStyle(.bordered)
@@ -203,49 +210,31 @@ struct OnboardingView: View {
 
             if !voiceTestPassed {
                 VStack(spacing: 12) {
-                    Text("**How VOX works:**")
-                        .font(.callout)
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(alignment: .top, spacing: 8) {
-                            Text("1.").font(.caption.bold()).foregroundColor(.accentBlue)
-                            Text("Use **Hex** to dictate into **Terminal.app**")
-                                .font(.caption)
-                        }
-                        HStack(alignment: .top, spacing: 8) {
-                            Text("2.").font(.caption.bold()).foregroundColor(.accentBlue)
-                            Text("VOX detects the transcription and monitors Terminal output")
-                                .font(.caption)
-                        }
-                        HStack(alignment: .top, spacing: 8) {
-                            Text("3.").font(.caption.bold()).foregroundColor(.accentBlue)
-                            Text("VOX **reads the response** back to you via TTS")
-                                .font(.caption)
-                        }
-                    }
-
                     if isTestListening {
                         VStack(spacing: 8) {
                             ProgressView()
                                 .controlSize(.small)
-                            Text("Waiting for Hex transcription...")
+                            Text("Listening for Hex transcription...")
                                 .font(.caption)
                                 .foregroundColor(.accentBlue)
-                            Text("Dictate something with Hex now!")
+                            Text("Try it now — dictate something with Hex!")
                                 .font(.caption.bold())
+
+                            Text("Open Terminal.app and use Hex to speak a command.\nVOX will detect it and read the response back.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
                         }
                     } else {
-                        Button("Start Test") {
-                            startTestListening()
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.accentBlue)
-                        .disabled(!appState.hexBridge.isHexRunning)
-
-                        if !appState.hexBridge.isHexRunning {
-                            Text("Launch Hex first to test voice input.")
-                                .font(.caption2)
-                                .foregroundColor(.statusOrange)
+                        // Hex not running — show instructions
+                        VStack(spacing: 8) {
+                            Text("Start **Hex** to test the voice flow.")
+                                .font(.callout)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                            Text("VOX will automatically start listening once Hex is running.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                         }
                     }
                 }
@@ -278,6 +267,23 @@ struct OnboardingView: View {
             appState.hexBridge.checkHexStatus()
             if !appState.hexBridge.isHexRunning {
                 appState.hexBridge.launchHex()
+            }
+            // Auto-start monitoring when step 3 appears
+            if !voiceTestPassed {
+                // Small delay to let Hex launch if needed
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                    appState.hexBridge.checkHexStatus()
+                    if !isTestListening && !voiceTestPassed {
+                        startTestListening()
+                    }
+                }
+            }
+        }
+        .onDisappear {
+            // Stop monitoring when navigating away from step 3
+            if isTestListening {
+                appState.hexBridge.stopMonitoring()
+                isTestListening = false
             }
         }
     }
