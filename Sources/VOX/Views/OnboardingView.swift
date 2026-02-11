@@ -8,6 +8,8 @@ struct OnboardingView: View {
     @State private var hexDetected = false
     @State private var ttsTestPassed = false
     @State private var selectedTTS: TTSEngineType = .macosSay
+    @State private var selectedSummarization: SummarizationMethod = .heuristic
+    @State private var ollamaChecked = false
     // Voice test state
     @State private var isTestListening = false
     @State private var testTranscription: String?
@@ -67,6 +69,7 @@ struct OnboardingView: View {
                     Button("Start Using VOX") {
                         appState.settings.hasCompletedOnboarding = true
                         appState.settings.ttsEngine = selectedTTS
+                        appState.settings.summarizationMethod = selectedSummarization
                         onComplete()
                     }
                     .buttonStyle(.borderedProminent)
@@ -168,6 +171,61 @@ struct OnboardingView: View {
             if ttsTestPassed {
                 Label("TTS working!", systemImage: "checkmark.circle.fill")
                     .foregroundColor(.statusGreen)
+            }
+
+            Divider()
+                .padding(.vertical, 4)
+
+            // Summary engine choice
+            Text("How should VOX summarize?")
+                .font(.callout.bold())
+
+            VStack(alignment: .leading, spacing: 8) {
+                TTSOptionRow(
+                    title: "Heuristic (basic)",
+                    subtitle: "Pattern matching — no setup needed, limited accuracy",
+                    isSelected: selectedSummarization == .heuristic,
+                    action: { selectedSummarization = .heuristic }
+                )
+                TTSOptionRow(
+                    title: "Ollama (smart, local AI)",
+                    subtitle: "LLM summarization — free, private, needs Ollama installed",
+                    isSelected: selectedSummarization == .ollama,
+                    action: {
+                        selectedSummarization = .ollama
+                        if !ollamaChecked {
+                            Task { await appState.ollamaService.checkServer() }
+                            ollamaChecked = true
+                        }
+                    }
+                )
+            }
+
+            if selectedSummarization == .ollama {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(appState.ollamaService.isServerRunning ? Color.statusGreen : Color.statusRed)
+                            .frame(width: 6, height: 6)
+                        Text(appState.ollamaService.isServerRunning ? "Ollama running" : "Ollama not running")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+
+                    if !OllamaService.isOllamaInstalled() {
+                        HStack(spacing: 4) {
+                            Image(systemName: "exclamationmark.triangle")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                            Link("Download Ollama", destination: OllamaService.downloadURL)
+                                .font(.caption)
+                        }
+                    }
+
+                    Text("You can configure Ollama in Settings → Advanced later.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
             }
         }
     }

@@ -3,7 +3,7 @@ import Foundation
 /// The 4 verbosity levels that control how much audio feedback VOX provides.
 enum VerbosityLevel: Int, CaseIterable, Codable, Identifiable {
     case silent = 0
-    case ping = 1
+    case notice = 1
     case summary = 2
     case full = 3
 
@@ -12,7 +12,7 @@ enum VerbosityLevel: Int, CaseIterable, Codable, Identifiable {
     var label: String {
         switch self {
         case .silent: "Silent"
-        case .ping: "Ping"
+        case .notice: "Notice"
         case .summary: "Summary"
         case .full: "Full"
         }
@@ -21,9 +21,9 @@ enum VerbosityLevel: Int, CaseIterable, Codable, Identifiable {
     var description: String {
         switch self {
         case .silent: "No audio — visual indicator only"
-        case .ping: "Status confirmation only (\"Done\" / \"Error\")"
+        case .notice: "Ready notification in your language"
         case .summary: "1-2 sentence AI summary"
-        case .full: "Complete response read aloud"
+        case .full: "Complete cleaned response read aloud"
         }
     }
 

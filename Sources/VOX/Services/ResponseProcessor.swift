@@ -3,13 +3,15 @@ import Foundation
 /// Processes command output into summaries based on verbosity level.
 final class ResponseProcessor {
     private let settings: VoxSettings
+    var ollamaService: OllamaService?
 
-    init(settings: VoxSettings = .shared) {
+    init(settings: VoxSettings = .shared, ollamaService: OllamaService? = nil) {
         self.settings = settings
+        self.ollamaService = ollamaService
     }
 
     /// Process command output according to verbosity level.
-    func process(_ result: ExecutionResult, verbosity: VerbosityLevel, command: String) -> ProcessedResponse {
+    func process(_ result: ExecutionResult, verbosity: VerbosityLevel, command: String) async -> ProcessedResponse {
         switch verbosity {
         case .silent:
             return ProcessedResponse(
@@ -17,16 +19,36 @@ final class ResponseProcessor {
                 status: result.isSuccess ? .success : .error
             )
 
-        case .ping:
-            let text = result.isSuccess ? "Done." : "Error occurred."
-            return ProcessedResponse(spokenText: text, status: result.isSuccess ? .success : .error)
+        case .notice:
+            let notice = localizedNotice(isSuccess: result.isSuccess)
+            return ProcessedResponse(spokenText: notice, status: result.isSuccess ? .success : .error)
 
         case .summary:
-            let summary = summarize(result, command: command)
+            let cleaned = stripTerminalUI(result.output)
+            let cleanedResult = ExecutionResult(
+                output: cleaned, exitCode: result.exitCode,
+                duration: result.duration, wasTimeout: result.wasTimeout
+            )
+
+            // Try Ollama first, fallback to heuristic
+            if settings.summarizationMethod == .ollama,
+               let ollama = ollamaService,
+               await ollama.isServerRunning {
+                if let ollamaSummary = await ollama.summarize(
+                    text: cleaned, command: command,
+                    maxSentences: settings.maxSummaryLength,
+                    language: effectiveLanguageCode()
+                ) {
+                    return ProcessedResponse(spokenText: ollamaSummary, status: result.isSuccess ? .success : .error)
+                }
+            }
+
+            // Heuristic fallback
+            let summary = summarize(cleanedResult, command: command)
             return ProcessedResponse(spokenText: summary, status: result.isSuccess ? .success : .error)
 
         case .full:
-            let cleaned = cleanForSpeech(result.output)
+            let cleaned = cleanForSpeech(stripTerminalUI(result.output))
             return ProcessedResponse(spokenText: cleaned, status: result.isSuccess ? .success : .error)
         }
     }
@@ -41,6 +63,97 @@ final class ResponseProcessor {
         }
 
         return base
+    }
+
+    // MARK: - Localized Notice
+
+    /// Generate a localized ready notice based on response language setting.
+    private func localizedNotice(isSuccess: Bool) -> String {
+        let lang = effectiveLanguageCode()
+
+        if isSuccess {
+            switch lang {
+            case "nl": return "Klaar. Bekijk de terminal om verder te gaan."
+            case "de": return "Fertig. Überprüfe das Terminal um fortzufahren."
+            default:   return "Done. Check the terminal to continue."
+            }
+        } else {
+            switch lang {
+            case "nl": return "Er is een fout opgetreden. Bekijk de terminal."
+            case "de": return "Ein Fehler ist aufgetreten. Überprüfe das Terminal."
+            default:   return "An error occurred. Check the terminal."
+            }
+        }
+    }
+
+    /// Determine the effective language code based on settings.
+    private func effectiveLanguageCode() -> String {
+        switch settings.responseLanguage {
+        case .dutch: return "nl"
+        case .english: return "en"
+        case .followInput:
+            switch settings.inputLanguage {
+            case .dutch: return "nl"
+            case .german: return "de"
+            case .english: return "en"
+            case .autoDetect: return "en"
+            }
+        }
+    }
+
+    // MARK: - Terminal UI Stripping
+
+    /// Remove CLI UI artifacts that shouldn't be read aloud.
+    /// Strips progress bars, model info, keyboard hints, cost/token lines, version strings.
+    private func stripTerminalUI(_ text: String) -> String {
+        let lines = text.components(separatedBy: .newlines)
+
+        let filtered = lines.filter { line in
+            let l = line.trimmingCharacters(in: .whitespaces)
+
+            // Keep empty lines for paragraph structure
+            if l.isEmpty { return true }
+
+            // Progress bars (block characters)
+            if l.contains("█") || l.contains("▓") || l.contains("░") || l.contains("■") || l.contains("□") {
+                return false
+            }
+
+            // Arrow/play indicators (Claude Code footer)
+            if l.contains("►") || l.contains("▶") { return false }
+
+            // Model info lines: "Opus 4.6 |" or "Sonnet 4 |"
+            if l.range(of: #"^(Opus|Sonnet|Haiku|Claude)\s+[\d.]+"#, options: .regularExpression) != nil {
+                return false
+            }
+
+            // Version strings: "Claude Code v2.1.39"
+            if l.range(of: #"Claude Code v[\d.]+"#, options: .regularExpression) != nil {
+                return false
+            }
+
+            // Keyboard hints: "(shift+tab to cycle)", "(esc to cancel)"
+            if l.range(of: #"\([a-z+]+\s+to\s+\w+\)"#, options: .regularExpression) != nil {
+                return false
+            }
+
+            // Cost/token lines: "$0.12 | 1.2k tokens"
+            if l.range(of: #"\$[\d.]+\s*[|│]"#, options: .regularExpression) != nil {
+                return false
+            }
+
+            // Bypass permissions lines
+            if l.contains("bypass permissions") { return false }
+
+            // Box drawing characters (UI frames)
+            if l.range(of: #"^[╭╮╰╯│─┌┐└┘├┤┬┴┼]"#, options: .regularExpression) != nil {
+                return false
+            }
+
+            return true
+        }
+
+        return filtered.joined(separator: "\n")
     }
 
     // MARK: - Heuristic Summarization

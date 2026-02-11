@@ -57,8 +57,52 @@ final class TTSEngine: ObservableObject {
         let baseRate = Float(NSSpeechSynthesizer.defaultRate)
         synthesizer.rate = baseRate * Float(settings.ttsSpeed)
 
+        // Select voice based on language setting
+        if let voice = preferredVoice() {
+            synthesizer.setVoice(voice)
+        }
+
         isSpeaking = true
         synthesizer.startSpeaking(text)
+    }
+
+    /// Select the best available voice for the configured response language.
+    private func preferredVoice() -> NSSpeechSynthesizer.VoiceName? {
+        let targetLang: String
+        switch settings.responseLanguage {
+        case .dutch: targetLang = "nl"
+        case .english: targetLang = "en"
+        case .followInput:
+            switch settings.inputLanguage {
+            case .dutch: targetLang = "nl"
+            case .german: targetLang = "de"
+            case .english: targetLang = "en"
+            case .autoDetect: return nil // use system default
+            }
+        }
+
+        let voices = NSSpeechSynthesizer.availableVoices
+        let voiceAttrs: [(NSSpeechSynthesizer.VoiceName, [NSSpeechSynthesizer.VoiceAttributeKey: Any])] = voices.compactMap { voice in
+            let attrs = NSSpeechSynthesizer.attributes(forVoice: voice)
+            return (voice, attrs)
+        }
+
+        // Prefer premium voices (not "compact") for better quality
+        let premium = voiceAttrs.first { _, attrs in
+            let locale = attrs[.localeIdentifier] as? String ?? ""
+            let name = attrs[.name] as? String ?? ""
+            return locale.hasPrefix(targetLang) && !name.lowercased().contains("compact")
+        }
+
+        if let premium { return premium.0 }
+
+        // Fallback: any voice matching the language
+        let fallback = voiceAttrs.first { _, attrs in
+            let locale = attrs[.localeIdentifier] as? String ?? ""
+            return locale.hasPrefix(targetLang)
+        }
+
+        return fallback?.0
     }
 
     /// Called by delegate when speech finishes.

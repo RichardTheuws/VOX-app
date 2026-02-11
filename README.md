@@ -224,4 +224,4 @@ MIT License — see [LICENSE](LICENSE)
 Part of the [tools.theuws.com](https://tools.theuws.com) ecosystem.
 
 ---
-Version 0.6.2
+Version 0.7.0

@@ -18,6 +18,7 @@ final class AppState: ObservableObject {
     let hexBridge: HexBridge
     let ttsEngine: TTSEngine
     let history: CommandHistory
+    let ollamaService: OllamaService
 
     private let terminalReader: TerminalReader
     private let responseProcessor: ResponseProcessor
@@ -36,7 +37,8 @@ final class AppState: ObservableObject {
         self.ttsEngine = TTSEngine()
         self.history = CommandHistory()
         self.terminalReader = TerminalReader()
-        self.responseProcessor = ResponseProcessor()
+        self.ollamaService = OllamaService()
+        self.responseProcessor = ResponseProcessor(ollamaService: ollamaService)
 
         self.currentVerbosity = settings.defaultVerbosity
         self.currentTarget = settings.defaultTarget
@@ -159,7 +161,7 @@ final class AppState: ObservableObject {
             )
 
             let verbosity = settings.verbosity(for: target)
-            let processed = responseProcessor.process(result, verbosity: verbosity, command: transcription)
+            let processed = await responseProcessor.process(result, verbosity: verbosity, command: transcription)
 
             command.summary = processed.spokenText
             history.update(command)

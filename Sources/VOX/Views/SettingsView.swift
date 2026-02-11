@@ -16,7 +16,7 @@ struct SettingsView: View {
             TTSSettingsTab(settings: settings)
                 .tabItem { Label("TTS", systemImage: "speaker.wave.2") }
 
-            AdvancedSettingsTab(settings: settings)
+            AdvancedSettingsTab(settings: settings, ollamaService: appState.ollamaService)
                 .tabItem { Label("Advanced", systemImage: "wrench") }
         }
         .frame(width: 520, height: 440)
@@ -164,19 +164,122 @@ struct TTSSettingsTab: View {
 
 struct AdvancedSettingsTab: View {
     @ObservedObject var settings: VoxSettings
+    @ObservedObject var ollamaService: OllamaService
+
+    @State private var ollamaError: String?
 
     var body: some View {
         Form {
             Section("Summary Engine") {
                 Picker("Method", selection: $settings.summarizationMethod) {
-                    ForEach(SummarizationMethod.allCases, id: \.self) { method in
-                        Text(method.rawValue).tag(method)
-                    }
+                    Text("Heuristic").tag(SummarizationMethod.heuristic)
+                    Text("Ollama (local AI)").tag(SummarizationMethod.ollama)
                 }
 
                 if settings.summarizationMethod == .ollama {
-                    TextField("Ollama URL", text: $settings.ollamaURL)
-                    TextField("Model", text: $settings.ollamaModel)
+                    // Server status
+                    HStack {
+                        Circle()
+                            .fill(ollamaService.isServerRunning ? Color.statusGreen : Color.statusRed)
+                            .frame(width: 8, height: 8)
+                        Text(ollamaService.isServerRunning ? "Ollama running" : "Ollama not running")
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Button("Check") {
+                            Task { await ollamaService.checkServer() }
+                        }
+                        .buttonStyle(.borderless)
+                    }
+
+                    // Installation check
+                    if !OllamaService.isOllamaInstalled() {
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle")
+                                .foregroundColor(.orange)
+                            Text("Ollama not installed")
+                            Spacer()
+                            Link("Download", destination: OllamaService.downloadURL)
+                                .foregroundColor(.accentBlue)
+                        }
+                    }
+
+                    // Model info
+                    if ollamaService.isServerRunning {
+                        HStack {
+                            Text("Model")
+                            Spacer()
+                            if ollamaService.availableModels.contains(where: {
+                                $0.name.lowercased().hasPrefix(settings.ollamaModel.lowercased())
+                            }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.statusGreen)
+                                    Text(settings.ollamaModel)
+                                        .foregroundColor(.secondary)
+                                }
+                            } else {
+                                Text("Not installed")
+                                    .foregroundColor(.orange)
+                            }
+                        }
+
+                        // Download model button
+                        if !ollamaService.availableModels.contains(where: {
+                            $0.name.lowercased().hasPrefix(settings.ollamaModel.lowercased())
+                        }) {
+                            if ollamaService.isDownloadingModel {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Downloading \(settings.ollamaModel)...")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    ProgressView(value: ollamaService.downloadProgress)
+                                    Text("\(Int(ollamaService.downloadProgress * 100))%")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+                            } else {
+                                Button("Download \(settings.ollamaModel)") {
+                                    Task {
+                                        do {
+                                            try await ollamaService.pullModel(settings.ollamaModel)
+                                            ollamaError = nil
+                                        } catch {
+                                            ollamaError = error.localizedDescription
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Available models list
+                        if !ollamaService.availableModels.isEmpty {
+                            DisclosureGroup("Installed models (\(ollamaService.availableModels.count))") {
+                                ForEach(ollamaService.availableModels) { model in
+                                    HStack {
+                                        Text(model.name)
+                                            .font(.caption)
+                                        Spacer()
+                                        Text(model.formattedSize)
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if let error = ollamaError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundColor(.statusRed)
+                    }
+
+                    // Advanced Ollama settings
+                    DisclosureGroup("Advanced") {
+                        TextField("Ollama URL", text: $settings.ollamaURL)
+                        TextField("Model name", text: $settings.ollamaModel)
+                        Stepper("Max summary sentences: \(settings.maxSummaryLength)", value: $settings.maxSummaryLength, in: 1...5)
+                    }
                 }
             }
 
@@ -196,7 +299,6 @@ struct AdvancedSettingsTab: View {
 
             Section("Data") {
                 Button("Reset to Defaults") {
-                    // Reset all UserDefaults for the app
                     if let bundleID = Bundle.main.bundleIdentifier {
                         UserDefaults.standard.removePersistentDomain(forName: bundleID)
                     }
@@ -206,5 +308,10 @@ struct AdvancedSettingsTab: View {
         }
         .formStyle(.grouped)
         .padding()
+        .onAppear {
+            if settings.summarizationMethod == .ollama {
+                Task { await ollamaService.checkServer() }
+            }
+        }
     }
 }

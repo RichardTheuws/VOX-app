@@ -11,39 +11,43 @@ final class ResponseProcessorTests: XCTestCase {
 
     // MARK: - Silent Mode
 
-    func testSilentModeReturnsNoText() {
+    func testSilentModeReturnsNoText() async {
         let result = ExecutionResult(output: "some output", exitCode: 0, duration: 0.5, wasTimeout: false)
-        let response = processor.process(result, verbosity: .silent, command: "ls")
+        let response = await processor.process(result, verbosity: .silent, command: "ls")
         XCTAssertNil(response.spokenText)
         XCTAssertEqual(response.status, .success)
     }
 
-    func testSilentModeErrorStatus() {
+    func testSilentModeErrorStatus() async {
         let result = ExecutionResult(output: "error", exitCode: 1, duration: 0.5, wasTimeout: false)
-        let response = processor.process(result, verbosity: .silent, command: "ls")
+        let response = await processor.process(result, verbosity: .silent, command: "ls")
         XCTAssertNil(response.spokenText)
         XCTAssertEqual(response.status, .error)
     }
 
-    // MARK: - Ping Mode
+    // MARK: - Notice Mode
 
-    func testPingModeSuccess() {
+    func testNoticeModeSuccess() async {
         let result = ExecutionResult(output: "output", exitCode: 0, duration: 0.5, wasTimeout: false)
-        let response = processor.process(result, verbosity: .ping, command: "ls")
-        XCTAssertEqual(response.spokenText, "Done.")
+        let response = await processor.process(result, verbosity: .notice, command: "ls")
+        // Notice mode returns localized message (English default)
+        XCTAssertNotNil(response.spokenText)
+        XCTAssertTrue(response.spokenText!.contains("Done") || response.spokenText!.contains("Klaar"))
         XCTAssertEqual(response.status, .success)
     }
 
-    func testPingModeError() {
+    func testNoticeModeError() async {
         let result = ExecutionResult(output: "error", exitCode: 1, duration: 0.5, wasTimeout: false)
-        let response = processor.process(result, verbosity: .ping, command: "ls")
-        XCTAssertEqual(response.spokenText, "Error occurred.")
+        let response = await processor.process(result, verbosity: .notice, command: "ls")
+        XCTAssertNotNil(response.spokenText)
+        XCTAssertTrue(response.spokenText!.lowercased().contains("error") ||
+                       response.spokenText!.contains("fout"))
         XCTAssertEqual(response.status, .error)
     }
 
     // MARK: - Summary Mode: Git Status
 
-    func testSummaryGitStatusClean() {
+    func testSummaryGitStatusClean() async {
         let output = """
         On branch main
         Your branch is up to date with 'origin/main'.
@@ -51,14 +55,14 @@ final class ResponseProcessorTests: XCTestCase {
         nothing to commit, working tree clean
         """
         let result = ExecutionResult(output: output, exitCode: 0, duration: 0.3, wasTimeout: false)
-        let response = processor.process(result, verbosity: .summary, command: "git status")
+        let response = await processor.process(result, verbosity: .summary, command: "git status")
 
         XCTAssertNotNil(response.spokenText)
         XCTAssertTrue(response.spokenText!.contains("main"))
         XCTAssertTrue(response.spokenText!.contains("clean"))
     }
 
-    func testSummaryGitStatusModified() {
+    func testSummaryGitStatusModified() async {
         let output = """
         On branch feature
         Changes not staged for commit:
@@ -67,7 +71,7 @@ final class ResponseProcessorTests: XCTestCase {
           modified:   package.json
         """
         let result = ExecutionResult(output: output, exitCode: 0, duration: 0.3, wasTimeout: false)
-        let response = processor.process(result, verbosity: .summary, command: "git status")
+        let response = await processor.process(result, verbosity: .summary, command: "git status")
 
         XCTAssertNotNil(response.spokenText)
         XCTAssertTrue(response.spokenText!.contains("feature"))
@@ -76,23 +80,23 @@ final class ResponseProcessorTests: XCTestCase {
 
     // MARK: - Summary Mode: Build Commands
 
-    func testSummaryBuildSuccess() {
+    func testSummaryBuildSuccess() async {
         let output = "Successfully compiled 42 files."
         let result = ExecutionResult(output: output, exitCode: 0, duration: 2.0, wasTimeout: false)
-        let response = processor.process(result, verbosity: .summary, command: "npm run build")
+        let response = await processor.process(result, verbosity: .summary, command: "npm run build")
 
         XCTAssertNotNil(response.spokenText)
         XCTAssertTrue(response.spokenText!.lowercased().contains("success") ||
                        response.spokenText!.lowercased().contains("compiled"))
     }
 
-    func testSummaryBuildError() {
+    func testSummaryBuildError() async {
         let output = """
         ERROR in src/index.ts
         Module not found: Can't resolve 'react-dom'
         """
         let result = ExecutionResult(output: output, exitCode: 1, duration: 1.5, wasTimeout: false)
-        let response = processor.process(result, verbosity: .summary, command: "npm run build")
+        let response = await processor.process(result, verbosity: .summary, command: "npm run build")
 
         XCTAssertNotNil(response.spokenText)
         XCTAssertTrue(response.spokenText!.lowercased().contains("error"))
@@ -100,7 +104,7 @@ final class ResponseProcessorTests: XCTestCase {
 
     // MARK: - Summary Mode: Ls
 
-    func testSummaryLsOutput() {
+    func testSummaryLsOutput() async {
         let output = """
         total 24
         drwxr-xr-x  5 user  staff  160 Jan  1 12:00 .
@@ -109,7 +113,7 @@ final class ResponseProcessorTests: XCTestCase {
         -rw-r--r--  1 user  staff   42 Jan  1 12:00 file2.txt
         """
         let result = ExecutionResult(output: output, exitCode: 0, duration: 0.1, wasTimeout: false)
-        let response = processor.process(result, verbosity: .summary, command: "ls -la")
+        let response = await processor.process(result, verbosity: .summary, command: "ls -la")
 
         XCTAssertNotNil(response.spokenText)
         XCTAssertTrue(response.spokenText!.contains("items listed"))
@@ -117,9 +121,9 @@ final class ResponseProcessorTests: XCTestCase {
 
     // MARK: - Summary Mode: Timeout
 
-    func testSummaryTimeout() {
+    func testSummaryTimeout() async {
         let result = ExecutionResult(output: "", exitCode: -1, duration: 30.0, wasTimeout: true)
-        let response = processor.process(result, verbosity: .summary, command: "sleep 999")
+        let response = await processor.process(result, verbosity: .summary, command: "sleep 999")
 
         XCTAssertNotNil(response.spokenText)
         XCTAssertTrue(response.spokenText!.contains("timed out"))
@@ -127,9 +131,9 @@ final class ResponseProcessorTests: XCTestCase {
 
     // MARK: - Summary Mode: Empty Output
 
-    func testSummaryEmptyOutput() {
+    func testSummaryEmptyOutput() async {
         let result = ExecutionResult(output: "", exitCode: 0, duration: 0.1, wasTimeout: false)
-        let response = processor.process(result, verbosity: .summary, command: "touch file.txt")
+        let response = await processor.process(result, verbosity: .summary, command: "touch file.txt")
 
         XCTAssertNotNil(response.spokenText)
         XCTAssertTrue(response.spokenText!.contains("No output"))
@@ -137,10 +141,10 @@ final class ResponseProcessorTests: XCTestCase {
 
     // MARK: - Summary Mode: Generic Error
 
-    func testSummaryGenericError() {
+    func testSummaryGenericError() async {
         let output = "fatal: not a git repository"
         let result = ExecutionResult(output: output, exitCode: 128, duration: 0.1, wasTimeout: false)
-        let response = processor.process(result, verbosity: .summary, command: "git log")
+        let response = await processor.process(result, verbosity: .summary, command: "git log")
 
         XCTAssertNotNil(response.spokenText)
         XCTAssertTrue(response.spokenText!.contains("128") || response.spokenText!.contains("fatal"))
@@ -148,10 +152,10 @@ final class ResponseProcessorTests: XCTestCase {
 
     // MARK: - Full Mode
 
-    func testFullModeReturnsCleanedOutput() {
+    func testFullModeReturnsCleanedOutput() async {
         let output = "Hello world\nhttps://example.com/path\nDone"
         let result = ExecutionResult(output: output, exitCode: 0, duration: 0.5, wasTimeout: false)
-        let response = processor.process(result, verbosity: .full, command: "echo test")
+        let response = await processor.process(result, verbosity: .full, command: "echo test")
 
         XCTAssertNotNil(response.spokenText)
         // URLs should be cleaned
@@ -159,21 +163,76 @@ final class ResponseProcessorTests: XCTestCase {
         XCTAssertFalse(response.spokenText!.contains("https://"))
     }
 
-    func testFullModeStripsCodeBlocks() {
+    func testFullModeStripsCodeBlocks() async {
         let output = "Here is code:\n```swift\nlet x = 1\n```\nEnd."
         let result = ExecutionResult(output: output, exitCode: 0, duration: 0.5, wasTimeout: false)
-        let response = processor.process(result, verbosity: .full, command: "claude explain")
+        let response = await processor.process(result, verbosity: .full, command: "claude explain")
 
         XCTAssertNotNil(response.spokenText)
         XCTAssertTrue(response.spokenText!.contains("code block omitted"))
         XCTAssertFalse(response.spokenText!.contains("let x = 1"))
     }
 
+    // MARK: - Full Mode: Terminal UI Stripping
+
+    func testFullModeStripsProgressBars() async {
+        let output = "Building...\n█████░░░░░ 50%\nDone building."
+        let result = ExecutionResult(output: output, exitCode: 0, duration: 1.0, wasTimeout: false)
+        let response = await processor.process(result, verbosity: .full, command: "build")
+
+        XCTAssertNotNil(response.spokenText)
+        XCTAssertFalse(response.spokenText!.contains("█"))
+        XCTAssertTrue(response.spokenText!.contains("Done building"))
+    }
+
+    func testFullModeStripsClaudeCodeFooter() async {
+        let output = "File created successfully.\nOpus 4.6 | project ■████ 21%\n► bypass permissions on (shift+tab to cycle)"
+        let result = ExecutionResult(output: output, exitCode: 0, duration: 0.5, wasTimeout: false)
+        let response = await processor.process(result, verbosity: .full, command: "claude code")
+
+        XCTAssertNotNil(response.spokenText)
+        XCTAssertTrue(response.spokenText!.contains("File created"))
+        XCTAssertFalse(response.spokenText!.contains("Opus"))
+        XCTAssertFalse(response.spokenText!.contains("bypass"))
+    }
+
+    func testFullModeStripsCostLines() async {
+        let output = "Changes applied.\n$0.12 | 1.2k tokens"
+        let result = ExecutionResult(output: output, exitCode: 0, duration: 0.5, wasTimeout: false)
+        let response = await processor.process(result, verbosity: .full, command: "claude")
+
+        XCTAssertNotNil(response.spokenText)
+        XCTAssertTrue(response.spokenText!.contains("Changes applied"))
+        XCTAssertFalse(response.spokenText!.contains("$0.12"))
+    }
+
+    func testFullModeStripsKeyboardHints() async {
+        let output = "Ready.\n(esc to cancel)\n(shift+tab to cycle)"
+        let result = ExecutionResult(output: output, exitCode: 0, duration: 0.5, wasTimeout: false)
+        let response = await processor.process(result, verbosity: .full, command: "claude")
+
+        XCTAssertNotNil(response.spokenText)
+        XCTAssertTrue(response.spokenText!.contains("Ready"))
+        XCTAssertFalse(response.spokenText!.contains("esc to cancel"))
+    }
+
+    // MARK: - Summary Mode: Terminal UI Also Stripped
+
+    func testSummaryModeAlsoStripsTerminalUI() async {
+        let output = "On branch main\nnothing to commit, working tree clean\n█████████ 100%\nOpus 4.6 | done"
+        let result = ExecutionResult(output: output, exitCode: 0, duration: 0.3, wasTimeout: false)
+        let response = await processor.process(result, verbosity: .summary, command: "git status")
+
+        XCTAssertNotNil(response.spokenText)
+        XCTAssertTrue(response.spokenText!.contains("main"))
+        XCTAssertFalse(response.spokenText!.contains("█"))
+    }
+
     // MARK: - VerbosityLevel Comparable
 
     func testVerbosityComparable() {
-        XCTAssertTrue(VerbosityLevel.silent < VerbosityLevel.ping)
-        XCTAssertTrue(VerbosityLevel.ping < VerbosityLevel.summary)
+        XCTAssertTrue(VerbosityLevel.silent < VerbosityLevel.notice)
+        XCTAssertTrue(VerbosityLevel.notice < VerbosityLevel.summary)
         XCTAssertTrue(VerbosityLevel.summary < VerbosityLevel.full)
     }
 }

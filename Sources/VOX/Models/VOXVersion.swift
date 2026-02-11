@@ -2,5 +2,5 @@ import Foundation
 
 /// Central version constant for the VOX app.
 enum VOXVersion {
-    static let current = "0.6.2"
+    static let current = "0.7.0"
 }

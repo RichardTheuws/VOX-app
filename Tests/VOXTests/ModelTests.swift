@@ -9,7 +9,7 @@ final class VerbosityLevelTests: XCTestCase {
 
     func testLabels() {
         XCTAssertEqual(VerbosityLevel.silent.label, "Silent")
-        XCTAssertEqual(VerbosityLevel.ping.label, "Ping")
+        XCTAssertEqual(VerbosityLevel.notice.label, "Notice")
         XCTAssertEqual(VerbosityLevel.summary.label, "Summary")
         XCTAssertEqual(VerbosityLevel.full.label, "Full")
     }
@@ -20,15 +20,15 @@ final class VerbosityLevelTests: XCTestCase {
     }
 
     func testNextCycles() {
-        XCTAssertEqual(VerbosityLevel.silent.next(), .ping)
-        XCTAssertEqual(VerbosityLevel.ping.next(), .summary)
+        XCTAssertEqual(VerbosityLevel.silent.next(), .notice)
+        XCTAssertEqual(VerbosityLevel.notice.next(), .summary)
         XCTAssertEqual(VerbosityLevel.summary.next(), .full)
         XCTAssertEqual(VerbosityLevel.full.next(), .silent) // wraps around
     }
 
     func testComparable() {
-        XCTAssertTrue(VerbosityLevel.silent < .ping)
-        XCTAssertTrue(VerbosityLevel.ping < .summary)
+        XCTAssertTrue(VerbosityLevel.silent < .notice)
+        XCTAssertTrue(VerbosityLevel.notice < .summary)
         XCTAssertTrue(VerbosityLevel.summary < .full)
         XCTAssertFalse(VerbosityLevel.full < .silent)
     }

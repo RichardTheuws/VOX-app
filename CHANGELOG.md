@@ -5,6 +5,31 @@ All notable changes to VOX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.7.0] - 2026-02-11
+
+### Added
+- **OllamaService**: New HTTP client for local Ollama API — summarization, model management, server status checking, and model downloading with progress tracking. Zero external dependencies, uses native `URLSession`.
+- **Terminal UI stripping**: New `stripTerminalUI()` in ResponseProcessor removes CLI artifacts before speech — progress bars (█▓░), Claude Code footer (model info, cost/token lines), keyboard hints (`(esc to cancel)`), version strings, and box-drawing characters.
+- **Dutch TTS voice selection**: TTSEngine now selects the best available macOS voice matching the configured response language. Prefers premium (non-compact) voices, with automatic fallback.
+- **Localized ready notices**: Notice verbosity level now speaks context-aware messages in the user's language — e.g. "Klaar. Bekijk de terminal om verder te gaan." (Dutch) or "Done. Check the terminal to continue." (English).
+- **Ollama management UI**: Settings → Advanced now shows Ollama server status (green/red indicator), installed models list with sizes, model download button with progress bar, installation check with download link, and advanced configuration (URL, model name, max summary sentences).
+- **Summary engine choice in onboarding**: Step 2 (TTS) now offers Heuristic vs Ollama summarization choice with Ollama status check.
+- **5 new tests**: Terminal UI stripping tests for progress bars, Claude Code footer, cost lines, keyboard hints, and summary mode stripping. Total: 37 tests (was 32).
+
+### Changed
+- **Verbosity `.ping` renamed to `.notice`**: Label changed from "Ping" to "Notice", description updated to "Ready notification in your language". RawValue (1) unchanged — existing user settings preserved.
+- **ResponseProcessor is now `async`**: `process()` method is async to support Ollama summarization. Falls back to heuristic when Ollama is unavailable.
+- **Summary mode routes through Ollama**: When summarization method is set to Ollama, summary verbosity sends terminal output to local LLM for intelligent summarization in the user's language, with heuristic fallback.
+- **Full mode now strips terminal UI**: Full verbosity output is cleaned of CLI artifacts before being read aloud.
+- **Settings Advanced tab**: Expanded from basic Ollama URL/model fields to full Ollama management with status, models, download, and advanced disclosure group.
+
+### Technical
+- `OllamaService.swift` — New file: ~220 lines, `@MainActor`, `ObservableObject` with `URLSession`-based HTTP client
+- `ResponseProcessor` constructor accepts optional `OllamaService` dependency
+- `AppState` now owns `OllamaService` instance and injects it into `ResponseProcessor`
+- `TTSEngine.preferredVoice()` uses `NSSpeechSynthesizer.availableVoices` and `attributes(forVoice:)` for language-based voice lookup
+- All test methods updated to `async` for async `process()` calls
+
 ## [0.6.2] - 2026-02-11
 
 ### Changed
