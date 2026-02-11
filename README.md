@@ -2,7 +2,7 @@
 
 > Talk to your terminal. Hear what matters.
 
-VOX is an open-source macOS menu bar app that lets developers control their terminal and IDEs with voice commands, and hear configurable audio summaries of responses. Built with Swift 6 and SwiftUI, VOX runs entirely on-device with zero telemetry.
+VOX is an open-source macOS menu bar companion for [Hex](https://hex.kitlangton.com/). When you dictate a command into Terminal or iTerm2 via Hex, VOX monitors the output and reads it back to you with configurable verbosity. Built with Swift 6 and SwiftUI, VOX runs entirely on-device with zero telemetry.
 
 <p align="center">
   <img src="Assets/icon_1024.png" width="128" alt="VOX App Icon" />
@@ -10,32 +10,40 @@ VOX is an open-source macOS menu bar app that lets developers control their term
 
 ## Why VOX?
 
-Developers spend hours typing terminal commands, navigating IDEs, and reading lengthy LLM outputs. With AI-powered tools like Claude Code, Cursor, and Windsurf, the bottleneck has shifted from writing code to entering commands and processing output.
+Developers using voice-driven tools like [Hex](https://hex.kitlangton.com/) can dictate commands into their terminal — but they still have to read the output. With AI tools producing lengthy responses (Claude Code, Cursor, Windsurf), the bottleneck has shifted from typing to reading.
 
-VOX changes this: **speak your command, hear what matters**. No more reading 500-word LLM responses when a 2-sentence summary tells you everything you need.
+VOX closes the loop: **dictate your command with Hex, hear the response from VOX**. No more reading 500-word outputs when a 2-sentence summary tells you everything you need.
+
+## How It Works
+
+```
+You speak → Hex transcribes → Command runs in Terminal → VOX reads the response
+```
+
+1. **Hex** listens to your voice and types the transcription into Terminal/iTerm2
+2. **Terminal** executes the command as normal
+3. **VOX** detects the new output via AppleScript, processes it, and speaks a summary
+
+VOX never executes commands itself — it only reads terminal output. No accessibility permissions, no shell access, no risk.
 
 ## Features
 
-- **Push-to-talk** — Hold a configurable hotkey to dictate commands (Control+Space, Option+Space, Command+Shift+V, or Fn+Space)
-- **CGEventTap hotkeys** — Key events are consumed at the OS level, preventing characters from leaking into apps
-- **Terminal execution** — Voice commands run directly in your shell via `/bin/zsh`
-- **Claude Code integration** — Route prompts to Claude Code CLI with voice prefix "claude ..."
+- **Terminal monitoring** — Detects new output in Terminal.app and iTerm2 after Hex dictation
 - **Smart summaries** — 4 verbosity levels: Silent, Ping, Summary, Full
-- **Hex integration** — On-device speech-to-text via [Hex](https://hex.kitlangton.com/) (WhisperKit/Parakeet)
-- **Safety first** — Destructive command detection (`rm -rf`, `sudo`, `DROP TABLE`, etc.) with voice/click confirmation
-- **Command history** — Searchable, filterable log of all voice commands and results
-- **Floating HUD** — Push-to-talk overlay and destructive confirm dialogs as centered floating panels
-- **Onboarding wizard** — 6-step setup: Accessibility, Microphone, Hex, Hotkey, TTS, Voice Test
-- **Natural language** — Say "list files" instead of typing `ls -la`
+- **Hex integration** — Watches Hex's `transcription_history.json` for new dictations with source app context
+- **Per-app verbosity** — Configure different verbosity levels per target app
+- **TTS output** — Speaks responses via macOS NSSpeechSynthesizer with configurable speed and volume
+- **Command history** — Searchable, filterable log of all monitored commands and responses
+- **Onboarding wizard** — 3-step setup: Hex, TTS, Voice Test
 - **Privacy-first** — All processing on-device, no telemetry, no cloud required
 
 ## Requirements
 
 - macOS 14.0 (Sonoma) or later
-- [Hex](https://hex.kitlangton.com/) for speech-to-text (recommended)
-- Accessibility permission (for global hotkeys via CGEventTap)
-- Microphone permission (for voice input via Hex)
+- [Hex](https://hex.kitlangton.com/) for speech-to-text
 - Xcode 16+ / Swift 6 (for building from source)
+
+No accessibility or microphone permissions needed — Hex handles all voice input.
 
 ## Quick Start
 
@@ -77,84 +85,22 @@ swift build -c release
 
 ```bash
 swift test
-# 90 tests, 0 failures
+# 32 tests, 0 failures
 ```
 
 ## Getting Started
 
-1. **Launch VOX** — it appears as a microphone icon in your menu bar
-2. **Complete onboarding** — the 6-step wizard guides you through:
-   - Granting Accessibility access (for global hotkeys)
-   - Granting Microphone access (for voice input)
-   - Installing and starting [Hex](https://hex.kitlangton.com/) (speech-to-text)
-   - Choosing your push-to-talk hotkey
-   - Selecting a TTS engine
-   - Testing your voice setup with an interactive voice test
-3. **Hold your hotkey** (default: Control+Space) and speak a command
-4. **Release** to execute — VOX speaks the summary back to you
-5. **Press Escape** to cancel any action at any time
-
-## Keyboard Shortcuts
-
-VOX uses CGEventTap for global hotkey interception. Events are consumed at the OS level so they don't leak into other applications.
-
-| Shortcut | Action |
-|----------|--------|
-| Control+Space *(default)* | Push-to-talk (hold & release) |
-| Option+V | Cycle verbosity level |
-| Escape | Cancel current action |
-
-### Hotkey Presets
-
-You can choose from 4 push-to-talk hotkey presets during onboarding or in Settings:
-
-| Preset | Keys | Notes |
-|--------|------|-------|
-| **Control+Space** *(recommended)* | `^Space` | Doesn't conflict with Spotlight or IME |
-| Option+Space | `⌥Space` | Classic, but may type special characters |
-| Command+Shift+V | `⌘⇧V` | Safe, unlikely to conflict |
-| Fn+Space | `FnSpace` | Minimal, uses the Globe key |
-
-## Voice Commands
-
-### Voice Prefixes (Target Routing)
-
-| Prefix | Target | Example |
-|--------|--------|---------|
-| *(none)* | Terminal.app | "git status" |
-| "terminal ..." | Terminal.app | "terminal list all docker containers" |
-| "claude ..." | Claude Code CLI | "claude explain this function" |
-| "code ..." | VS Code / Cursor | "code open the readme file" |
-
-### Natural Language Mappings
-
-| Say | Executes |
-|-----|----------|
-| "list files" / "show files" | `ls -la` |
-| "where am I" / "show directory" | `pwd` |
-| "go to Documents" | `cd Documents` |
-| "create folder my-project" | `mkdir -p my-project` |
-| "git status" | `git status` |
-| "npm run build" | `npm run build` |
-| Any shell command | Executed as-is |
-
-### Destructive Command Safety
-
-VOX detects potentially dangerous commands and requires confirmation:
-
-- `rm -rf`, `rm -r` — recursive deletion
-- `sudo` — elevated privileges
-- `DROP TABLE`, `TRUNCATE` — database destruction
-- `git push --force` / `git reset --hard` — git history rewriting
-- `docker rm` — container removal
-- `shutdown`, `reboot` — system commands
-- `chmod 777` — insecure permissions
-
-When detected, VOX shows a floating confirmation panel and says *"Destructive command detected. Say confirm or cancel."*
+1. **Launch VOX** — it appears as an ear icon in your menu bar
+2. **Complete onboarding** — the 3-step wizard guides you through:
+   - Installing and starting [Hex](https://hex.kitlangton.com/)
+   - Selecting a TTS engine and voice
+   - Testing the full flow: dictate in Terminal, hear VOX respond
+3. **Open Terminal** and start dictating commands with Hex
+4. **VOX automatically** monitors the output and speaks a summary
 
 ## Verbosity Levels
 
-Cycle through levels with **Option+V** or configure per-app in Settings:
+Configure per-app in Settings or set a global default:
 
 | Level | Name | What you hear |
 |-------|------|---------------|
@@ -175,37 +121,32 @@ The Summary level uses smart heuristics to extract what matters:
 VOX (Menu Bar App)
 ├── Models/
 │   ├── VerbosityLevel.swift    — 4-level verbosity enum with cycling
-│   ├── TargetApp.swift         — Terminal, Claude Code, VS Code, etc.
+│   ├── TargetApp.swift         — Terminal, iTerm2, Claude Code, VS Code, etc.
 │   ├── VoxCommand.swift        — Command history model with Codable
-│   ├── VoxSettings.swift       — @AppStorage settings + hotkey presets
+│   ├── VoxSettings.swift       — @AppStorage settings
 │   └── VOXVersion.swift        — Centralized version constant
 ├── Services/
-│   ├── HexBridge.swift         — Clipboard-based Hex STT integration
-│   ├── TerminalExecutor.swift  — Shell execution via Process API
+│   ├── HexBridge.swift         — Monitors Hex transcription_history.json
+│   ├── TerminalReader.swift    — Reads terminal content via AppleScript
 │   ├── ResponseProcessor.swift — Verbosity-aware output summarization
 │   ├── TTSEngine.swift         — Text-to-speech via NSSpeechSynthesizer
-│   ├── HotkeyManager.swift     — CGEventTap global hotkey interception
-│   ├── CommandRouter.swift     — NLP prefix routing + natural language
-│   ├── CommandHistory.swift    — Persistent command log (JSON)
-│   └── SafetyChecker.swift     — Destructive command & secret detection
+│   └── CommandHistory.swift    — Persistent command log (JSON)
 ├── Views/
 │   ├── MenuBarView.swift       — Menu bar dropdown with status + actions
-│   ├── PushToTalkOverlay.swift — Floating HUD during listening
-│   ├── SettingsView.swift      — 5-tab settings window
+│   ├── SettingsView.swift      — 4-tab settings window
 │   ├── HistoryView.swift       — Searchable command history
-│   ├── OnboardingView.swift    — 6-step first-run wizard
-│   └── DestructiveConfirmView.swift — Floating safety confirmation
-├── AppState.swift              — Central coordinator + panel management
+│   └── OnboardingView.swift    — 3-step first-run wizard
+├── AppState.swift              — Central coordinator (Hex → Monitor → TTS)
 └── VOXApp.swift                — @main entry point with MenuBarExtra
 ```
 
 ### Key Design Decisions
 
 - **Menu bar-only app** — Uses `NSApp.setActivationPolicy(.accessory)` to live in the menu bar without a dock icon
-- **CGEventTap over NSEvent monitors** — CGEventTap can consume (suppress) key events at the OS level, preventing hotkey characters from leaking into foreground apps. Falls back to NSEvent monitors if Accessibility isn't granted.
-- **Floating NSPanel overlays** — Push-to-talk HUD and destructive command confirmation use `NSPanel` with `.nonactivatingPanel` + `.hudWindow` styles, so they appear on top without stealing focus
-- **Hex clipboard bridge** — Hex transcribes speech and places text on the clipboard. VOX monitors `NSPasteboard` for changes. This requires no changes to Hex itself.
-- **Reactive state with Combine** — `AppState` uses `@Published` properties and `$appMode.sink` for reactive panel management
+- **Pure companion** — VOX never executes commands. It only reads terminal output and speaks it. This eliminates the need for accessibility permissions, shell access, and safety checks.
+- **AppleScript terminal reading** — Reads terminal content via `osascript` calling `tell application "Terminal"`. Polls for output stabilization before processing.
+- **Hex file monitoring** — Watches `transcription_history.json` for new entries with `sourceAppBundleID` to determine if the dictation went to a terminal app
+- **Reactive state with Combine** — `AppState` uses `@Published` properties for reactive UI updates
 
 ## Hex Integration
 
@@ -213,20 +154,19 @@ VOX uses [Hex](https://hex.kitlangton.com/) for on-device speech-to-text:
 
 1. **Install Hex** from [hex.kitlangton.com](https://hex.kitlangton.com/)
 2. **Start Hex** — it runs in your menu bar alongside VOX
-3. **Speak** — Hex transcribes your voice using WhisperKit (Core ML) on your Mac
-4. **VOX receives** the transcription via clipboard monitoring
+3. **Speak** — Hex transcribes your voice and types it into the active app
+4. **VOX detects** the transcription via Hex's history file and monitors terminal output
 
-No audio data ever leaves your Mac. Hex supports multiple Whisper model sizes (tiny through large-v3) with different accuracy/speed tradeoffs.
+No audio data ever leaves your Mac. Hex supports multiple model sizes with different accuracy/speed tradeoffs.
 
 ## Settings
 
-VOX offers a comprehensive 5-tab settings window:
+VOX offers a 4-tab settings window:
 
 - **General** — Launch at login, theme (dark/light/system), language preferences
-- **Voice Input** — STT engine selection, activation mode, Whisper model size
-- **TTS Output** — Engine selection, speed, volume, interrupt behavior
-- **Apps** — Per-app verbosity, target detection, command prefixes
-- **Advanced** — Summarization method, Ollama integration, command timeout, safety patterns
+- **Apps** — Per-app verbosity levels, auto-detect target
+- **TTS** — Engine selection, speed, volume, interrupt behavior, default verbosity
+- **Advanced** — Summarization method, Ollama integration, monitor timeout, logging
 
 ## Roadmap
 
@@ -234,9 +174,11 @@ VOX offers a comprehensive 5-tab settings window:
 |---------|-----------|--------|
 | v0.1 | Terminal + Claude Code CLI + macOS Say TTS + 90 tests | Done |
 | v0.2 | Floating panels + destructive confirm + menu bar improvements | Done |
-| v0.3 | App icon + .app bundle + onboarding + CGEventTap hotkeys | **Current** |
-| v0.4 | Kokoro/Piper/ElevenLabs TTS + VS Code/Cursor/Windsurf | Planned |
-| v0.5 | Plugin system + Git/Docker voice commands | Planned |
+| v0.3 | App icon + .app bundle + onboarding wizard | Done |
+| v0.4 | Hex file monitoring + auto-process transcriptions | Done |
+| v0.5 | Monitor mode — read terminal output instead of executing | Done |
+| v0.6 | Strip to Hex companion — remove push-to-talk, execution, safety | **Current** |
+| v0.7 | Kokoro/Piper TTS + improved summaries | Planned |
 | v1.0 | Production ready + Homebrew install | Planned |
 
 ## Tech Stack
@@ -245,18 +187,19 @@ VOX offers a comprehensive 5-tab settings window:
 |-----------|------------|
 | Language | Swift 6 / SwiftUI |
 | STT | [Hex](https://hex.kitlangton.com/) (WhisperKit/Parakeet, on-device) |
-| TTS | macOS NSSpeechSynthesizer (MVP); Kokoro, Piper, ElevenLabs (planned) |
-| Hotkeys | CGEventTap (consumes events) with NSEvent fallback |
+| TTS | macOS NSSpeechSynthesizer (MVP); Kokoro, Piper (planned) |
+| Terminal Reading | AppleScript via `/usr/bin/osascript` |
 | Platform | macOS 14+ (Apple Silicon optimized) |
-| Testing | XCTest — 90 unit + integration tests |
+| Testing | XCTest — 32 unit tests |
 | Build | Swift Package Manager |
 
 ## Privacy & Security
 
-- **No cloud required** — All STT and TTS processing happens on your Mac
+- **No cloud required** — All processing happens on your Mac
 - **No telemetry** — Zero analytics, zero tracking, zero data collection
 - **No audio storage** — Voice audio is never saved; only transcriptions are logged (optionally)
-- **Secret masking** — Commands containing passwords, API keys, or tokens are masked in history
+- **No shell access** — VOX reads terminal output via AppleScript, never executes commands
+- **No permissions needed** — No accessibility, no microphone (Hex handles voice input)
 - **Open source** — Full source code is public and auditable
 
 ## Contributing
@@ -269,7 +212,7 @@ Contributions are welcome! Please open an issue or pull request.
 git clone https://github.com/RichardTheuws/VOX-app.git
 cd VOX-app
 swift build
-swift test  # 90 tests should pass
+swift test  # 32 tests should pass
 ```
 
 ## License
@@ -281,4 +224,4 @@ MIT License — see [LICENSE](LICENSE)
 Part of the [tools.theuws.com](https://tools.theuws.com) ecosystem.
 
 ---
-Version 0.3.1
+Version 0.6.0
