@@ -1,21 +1,22 @@
-# PRD: VOX — Voice-Operated Development Assistant
+# PRD: VOX — Hex Companion for Terminal Audio Feedback
 
 **Product**: VOX (Voice-Operated eXecution)
-**Versie**: 0.1.0 (PRD)
-**Datum**: 2026-02-10
+**Versie**: 2.0.0 (PRD)
+**Datum**: 2026-02-11
 **Auteur**: Theuws Development
 **Brand**: tools.theuws.com
-**Status**: DRAFT
+**Status**: ACTIVE — reflects v0.6.x implementation
+**GitHub**: https://github.com/RichardTheuws/VOX-app
 
 ---
 
 ## Context
 
-Developers besteden uren per dag aan het typen van terminal commands, navigeren door IDE's, en wachten op LLM-responses die ze vervolgens moeten lezen. Met de opkomst van AI-powered development tools (Claude Code, Cursor, Windsurf) is de bottleneck verschoven van "code schrijven" naar "commands invoeren en output verwerken".
+Developers die met AI-tools als Claude Code werken in de terminal, missen audio feedback. Je dicteert een commando via Hex, maar moet vervolgens naar je scherm kijken om de output te lezen. **VOX** vult dit gat: het detecteert wanneer Hex een dictaat naar Terminal stuurt, leest de terminal output, en spreekt een samenvatting terug via TTS.
 
-**VOX** lost dit op door spraakgestuurde development mogelijk te maken: je praat tegen je Mac, VOX stuurt commands naar je terminal of IDE, en leest de response samengevat terug. Geen volledige LLM-outputs meer — alleen wat je nodig hebt.
+VOX is een **passieve companion** — het voert zelf geen commands uit, heeft geen microfoontoegang nodig, en vraagt geen accessibility permissions. Hex doet de spraakherkenning, VOX doet het terugpraten.
 
-**Doelgroep**: Developers die macOS gebruiken met AI-powered tools (Claude Code, Cursor, Windsurf, VS Code).
+**Doelgroep**: macOS developers die Hex gebruiken voor spraakdictaat in Terminal.app of iTerm2.
 
 ---
 
@@ -25,14 +26,35 @@ Developers besteden uren per dag aan het typen van terminal commands, navigeren 
 > "Talk to your terminal. Hear what matters."
 
 ### Core Value Proposition
-VOX is een open-source macOS menu bar app waarmee developers via spraak hun terminal en IDE's bedienen, en configureerbare audio-samenvattingen van responses ontvangen.
+VOX is een open-source macOS menu bar companion voor Hex die terminal output samenvat en terugspreekt via configureerbare TTS. Geen extra permissions, geen command execution — puur audio feedback.
 
 ### Kernprincipes
-1. **Privacy-first**: Alle STT gebeurt on-device via Hex/Whisper
-2. **Developer-first**: Gebouwd door developers, voor developers
-3. **Configureerbaar**: Jij bepaalt hoeveel je hoort (niets, bevestiging, samenvatting, volledig)
-4. **Non-invasive**: Menu bar app, geen venster dat in de weg zit
+1. **Zero-permission**: Geen microphone, geen accessibility — Hex doet de input
+2. **Privacy-first**: Alle verwerking lokaal, geen cloud vereist, geen telemetrie
+3. **Configureerbaar**: 4 verbosity levels — jij bepaalt hoeveel je hoort
+4. **Non-invasive**: Menu bar app met ear icon, geen vensters in de weg
 5. **Open source**: MIT-licensed, community-driven
+
+### Hoe VOX werkt
+
+```
+Hex (STT) → Dictaat in Terminal → VOX detecteert → Leest output → Spreekt samenvatting
+```
+
+Gedetailleerd:
+```
+1. User activeert Hex (eigen hotkey)
+2. User spreekt: "git status"
+3. Hex transcribeert on-device → typt tekst in Terminal.app
+4. Hex slaat transcriptie op in transcription_history.json
+5. VOX detecteert nieuwe entry via file monitoring (0.3s poll)
+6. VOX leest Terminal content via AppleScript (snapshot)
+7. VOX wacht tot terminal output stabiliseert (1.5s geen verandering)
+8. VOX extraheert nieuwe output (diff van snapshot)
+9. ResponseProcessor maakt samenvatting op basis van verbosity level
+10. TTS Engine spreekt samenvatting uit
+11. Entry opgeslagen in CommandHistory
+```
 
 ---
 
@@ -44,120 +66,249 @@ VOX is een open-source macOS menu bar app waarmee developers via spraak hun term
 
 | Criterium | Swift/SwiftUI | Tauri/Rust | Electron |
 |-----------|--------------|------------|----------|
-| macOS systeemintegratie | Native (Accessibility, menu bar, hotkeys) | Beperkt via FFI | Beperkt |
-| STT integratie (Hex/WhisperKit) | Native Swift interop | Vereist bridging | Vereist bridging |
-| Binary size | ~15MB | ~8MB | ~150MB+ |
+| macOS systeemintegratie | Native (menu bar, AppleScript) | Beperkt via FFI | Beperkt |
+| Hex interop | Native Swift — zelfde ecosysteem | Vereist bridging | Vereist bridging |
+| Binary size | ~1.3MB | ~8MB | ~150MB+ |
 | RAM usage | ~30-50MB | ~40-60MB | ~200MB+ |
-| Apple Silicon optimalisatie | Native, Core ML, ANE | Goed via LLVM | Matig |
-| Terminal/shell integratie | NSTask, Process API | std::process | child_process |
-| Open source community (macOS tools) | Groeiend (Hex, Ice, Loop) | Groeiend (Tauri ecosystem) | Gevestigd |
-
-**Conclusie**: Swift 6 is de optimale keuze voor een macOS-only developer tool dat diep integreert met het OS, Hex (ook Swift), en Apple Silicon hardware.
+| Apple Silicon optimalisatie | Native | Goed via LLVM | Matig |
 
 ### Architectuurdiagram
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                    VOX (Menu Bar App)                │
-│  ┌──────────┐  ┌──────────┐  ┌───────────────────┐  │
-│  │ Voice    │  │ Command  │  │ Response          │  │
-│  │ Input    │  │ Router   │  │ Processor         │  │
-│  │ Module   │  │          │  │                   │  │
-│  └────┬─────┘  └────┬─────┘  └────┬──────────────┘  │
-│       │              │              │                 │
-│  ┌────▼─────┐  ┌────▼─────┐  ┌────▼──────────────┐  │
-│  │ Hex      │  │ Terminal │  │ TTS Engine        │  │
-│  │ Bridge   │  │ Executor │  │ (Kokoro/Piper/    │  │
-│  │ (STT)    │  │          │  │  ElevenLabs/Say)  │  │
-│  └──────────┘  └────┬─────┘  └───────────────────┘  │
-│                     │                                │
-│              ┌──────▼──────┐                         │
-│              │ App         │                         │
-│              │ Connectors  │                         │
-│              │ (Terminal,  │                         │
-│              │  VS Code,   │                         │
-│              │  Cursor,    │                         │
-│              │  Windsurf)  │                         │
-│              └─────────────┘                         │
-└─────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────┐
+│                VOX (Menu Bar App)                 │
+│                                                   │
+│  ┌──────────┐     ┌────────────────┐             │
+│  │ HexBridge│────▶│ AppState       │             │
+│  │ (file    │     │ (coordinator)  │             │
+│  │  monitor)│     └───┬────────┬───┘             │
+│  └──────────┘         │        │                 │
+│                       ▼        ▼                 │
+│  ┌──────────────┐  ┌──────────────────┐          │
+│  │ Terminal     │  │ Response         │          │
+│  │ Reader      │  │ Processor        │          │
+│  │ (AppleScript)│  │ (heuristic      │          │
+│  └──────┬───────┘  │  summarization) │          │
+│         │          └────────┬─────────┘          │
+│         │                   │                    │
+│         │          ┌────────▼─────────┐          │
+│         └─────────▶│ TTS Engine       │          │
+│                    │ (macOS Say /     │          │
+│                    │  Kokoro / 11Labs)│          │
+│                    └──────────────────┘          │
+│                                                   │
+│  ┌──────────────┐  ┌──────────────────┐          │
+│  │ Command      │  │ VoxSettings      │          │
+│  │ History      │  │ (AppStorage)     │          │
+│  └──────────────┘  └──────────────────┘          │
+└──────────────────────────────────────────────────┘
 ```
 
-### Core Modules
+### Services (5)
 
-1. **Voice Input Module** — Ontvangt getranscribeerde tekst van Hex
-2. **Command Router** — Interpreteert spraak en routeert naar juiste target app
-3. **Terminal Executor** — Voert shell commands uit via `Process` API
-4. **App Connectors** — Protocol-based plugins voor IDE-integratie
-5. **Response Processor** — Filtert/samenvat LLM output op basis van verbosity setting
-6. **TTS Engine** — Spreekt response uit via configureerbare TTS backend
+| Service | Verantwoordelijkheid | Implementatie |
+|---------|---------------------|---------------|
+| **HexBridge** | Monitort `transcription_history.json` voor nieuwe Hex dictaten | File polling (0.3s), timestamp seeding, `sourceAppBundleID` filtering |
+| **TerminalReader** | Leest Terminal.app / iTerm2 content | AppleScript via `osascript`, output stabilization detection |
+| **ResponseProcessor** | Samenvat terminal output op basis van verbosity | Heuristic: git status parser, error detection, Claude output parser |
+| **TTSEngine** | Spreekt tekst uit | `NSSpeechSynthesizer` (macOS Say), Kokoro en ElevenLabs gepland |
+| **CommandHistory** | Slaat transcripties + responses op | In-memory array met `VoxCommand` entries |
 
----
+### Models (5)
 
-## 3. MoSCoW Prioritering — Ondersteunde Apps
+| Model | Beschrijving |
+|-------|-------------|
+| **AppMode** | `.idle`, `.monitoring` — 2 states |
+| **VerbosityLevel** | `.silent`, `.ping`, `.summary`, `.full` — 4 levels |
+| **TargetApp** | Terminal, iTerm2, Claude Code, VS Code, Cursor, Windsurf |
+| **VoxCommand** | Transcription + resolved command + target + status + output + summary |
+| **VoxSettings** | Alle AppStorage settings (general, TTS, verbosity, apps, advanced) |
 
-### MUST Have (v0.1)
-| App | Integratiemethode | Functionaliteit |
-|-----|-------------------|-----------------|
-| **Terminal.app / iTerm2** | `Process` API (stdin/stdout) | Commands uitvoeren, output lezen |
-| **Claude Code CLI** | Terminal pipe (claude code draait in terminal) | Prompts dicteren, response samenvatten |
-| **Zsh/Bash shell** | Direct shell execution | Willekeurige commands |
+### Views (4)
 
-### SHOULD Have (v0.2)
-| App | Integratiemethode | Functionaliteit |
-|-----|-------------------|-----------------|
-| **VS Code** | CLI (`code` command) + Extension API | Bestanden openen, commands uitvoeren |
-| **Cursor** | CLI + Extension API (VS Code-compatible) | AI prompts dicteren, responses samenvatten |
-| **Windsurf** | CLI + Extension API (VS Code-fork) | AI prompts dicteren, responses samenvatten |
-
-### COULD Have (v0.3+)
-| App | Integratiemethode | Functionaliteit |
-|-----|-------------------|-----------------|
-| **Antigravity** | API/CLI (indien beschikbaar) | AI-interactie via voice |
-| **Git operations** | Terminal git commands | Commit messages dicteren, status opvragen |
-| **Docker** | Terminal docker commands | Container management via voice |
-| **SSH sessions** | Terminal SSH pipe | Remote server commands via voice |
-
-### WON'T Have (out of scope v1.0)
-- Browser-based tools (ChatGPT web, Claude web)
-- Mobile ondersteuning
-- Windows/Linux ondersteuning
-- Video conferencing integratie
-- Volledige IDE refactoring (alleen commands, niet visuele UI-manipulatie)
+| View | Beschrijving |
+|------|-------------|
+| **MenuBarView** | Menu bar dropdown met status, last command, verbosity, settings/history links |
+| **OnboardingView** | 3-staps wizard: Hex install → TTS keuze → Voice test |
+| **SettingsView** | 4 tabs: General, Apps, TTS, Advanced |
+| **HistoryView** | Chronologische lijst van transcripties + responses |
 
 ---
 
-## 4. Response Verbosity System
+## 3. Hex Bridge — Integratie Specificatie
+
+### Hoe Hex werkt
+Hex is een macOS menu bar app (Swift/SwiftUI) die on-device STT doet via:
+- **WhisperKit** (Core ML Whisper model)
+- **Parakeet TDT v3** (Core ML via FluidAudio)
+
+Hex slaat elke transcriptie op in:
+```
+~/Library/Containers/com.kitlangton.Hex/Data/Library/Application Support/
+  com.kitlangton.Hex/transcription_history.json
+```
+
+### JSON structuur
+```json
+{
+  "history": [
+    {
+      "id": "uuid",
+      "text": "git status",
+      "timestamp": 1707654321.123,
+      "sourceAppName": "Terminal",
+      "sourceAppBundleID": "com.apple.Terminal",
+      "duration": 1.2
+    }
+  ]
+}
+```
+
+### VOX File Monitor implementatie
+- **Methode**: `Timer` polling elke 0.3 seconden
+- **Optimalisatie**: Check `modificationDate` eerst — skip parsing als file ongewijzigd
+- **Timestamp seeding**: Bij `startMonitoring()` wordt de timestamp van het nieuwste entry opgeslagen, zodat alleen NEW entries worden verwerkt
+- **Filtering**: Alleen entries met `sourceAppBundleID` in `monitorableBundleIDs` (Terminal.app, iTerm2) worden verwerkt
+- **Andere apps**: Dictaten naar Cursor, WhatsApp, Notes etc. worden genegeerd
+
+### Gemonitorde apps
+
+| App | Bundle ID | Status |
+|-----|-----------|--------|
+| Terminal.app | `com.apple.Terminal` | ✅ Actief |
+| iTerm2 | `com.googlecode.iterm2` | ✅ Actief |
+| Alle andere apps | — | ❌ Genegeerd |
+
+---
+
+## 4. Terminal Monitoring — Output Capture
+
+### Methode: AppleScript via `osascript`
+
+**Terminal.app:**
+```applescript
+tell application "Terminal" to if (count of windows) > 0 then
+  get contents of selected tab of front window
+```
+
+**iTerm2:**
+```applescript
+tell application "iTerm2" to tell current session of current tab of current window
+  to get contents
+```
+
+### Output Stabilization Algorithm
+
+```
+1. Neem snapshot van terminal content (direct na Hex transcriptie)
+2. Wacht 500ms (laat command starten)
+3. Poll elke 300ms voor nieuwe content
+4. Als content verandert: reset stabilization timer
+5. Als content NIET verandert voor 1.5s: output is gestabiliseerd
+6. Extract nieuwe content (diff van snapshot)
+7. Timeout na 30s (configureerbaar via settings.commandTimeout)
+```
+
+### Diff-extractie
+- Line-by-line vergelijking van before/after snapshots
+- Vindt common prefix → nieuwe content = lines na divergentie
+- Fallback: character-level diff als terminal content op bestaande regels verandert (streaming output)
+
+---
+
+## 5. Response Verbosity System
 
 ### Het kernprobleem
-LLMs produceren lange responses. Als developer wil je niet 500 woorden horen voorgelezen. VOX biedt 4 verbosity levels:
+Terminal output (vooral van AI-tools als Claude Code) kan honderden regels zijn. Als developer wil je niet alles horen voorgelezen. VOX biedt 4 verbosity levels:
 
 ### Verbosity Levels
 
 | Level | Naam | Wat je hoort | Voorbeeld |
 |-------|------|-------------|-----------|
-| 0 | **Silent** | Niets (alleen visuele indicator) | *(stilte, groen vinkje in menu bar)* |
-| 1 | **Ping** | Alleen status bevestiging | *"Klaar."* / *"Fout opgetreden."* |
-| 2 | **Summary** (default) | AI-gegenereerde samenvatting (1-2 zinnen) | *"De functie is toegevoegd aan utils.py. 3 tests slagen."* |
-| 3 | **Full** | Volledige response voorgelezen | *(volledige LLM output)* |
+| 0 | **Silent** | Niets (alleen visuele indicator) | *(stilte, ear icon in menu bar)* |
+| 1 | **Ping** | Alleen status bevestiging | *"Done."* / *"Error occurred."* |
+| 2 | **Summary** (default) | Heuristic samenvatting (1-2 zinnen) | *"On main, 3 modified."* |
+| 3 | **Full** | Volledige response voorgelezen | *(volledige terminal output, code blocks gestript)* |
 
-### Configuratie-opties
-- **Globaal default level**: Stel in via Settings (standaard: Level 2 - Summary)
-- **Per-app override**: Bijv. Terminal op Level 1, Claude Code op Level 2
-- **Per-command override**: Zeg "summarize" of "full" voor/na een command
-- **Error escalation**: Bij errors automatisch naar Level 2+ (configureerbaar)
-- **Samenvatting taal**: Nederlands of Engels (configureerbaar, default: taal van input)
+### Configuratie
+- **Globaal default level**: Settings → TTS tab (standaard: Level 2 - Summary)
+- **Per-app override**: Settings → Apps tab — per target app een verbosity instellen
+- **Error escalation**: Bij errors automatisch naar hoger level (configureerbaar)
 
-### Samenvatting Engine
-- Voor Level 2 (Summary): Gebruik een lokaal LLM (bijv. Ollama met een klein model) of een simpele regel-based extractor die:
-  - Succes/faal status detecteert
-  - Bestandsnamen en nummers extraheert
-  - Error messages identificeert
-  - Dit comprimeert tot 1-2 zinnen
-- Fallback: Als geen lokaal LLM beschikbaar is, gebruik heuristische samenvatting (eerste regel + laatste regel + error detection)
+### Heuristic Summarization Engine (huidige implementatie)
+
+De `ResponseProcessor` gebruikt pattern-matching voor slimme samenvattingen:
+
+| Command type | Samenvatting logica |
+|-------------|-------------------|
+| `git status` | Parsed branch naam, telt modified/staged/untracked files |
+| `git log` | Telt commits |
+| `npm`/`build` | Detecteert error/success, extraheert eerste error line |
+| `ls` | Telt items |
+| `claude` | Zoekt file changes, test results, "Done" status |
+| Overige | Eerste regel + "(N lines total)" |
+| Errors | Exit code + eerste error/fatal/failed regel |
+
+### Speech Cleaning
+Voor verbosity level Full wordt output opgeschoond:
+- Code blocks (```) → "(code block omitted)"
+- ANSI escape codes → verwijderd
+- URLs → "link to [domain]"
+
+### Toekomstige samenvatting opties (gepland)
+Settings bevat al `SummarizationMethod` enum:
+- **Heuristic** (huidige default) — geen LLM, instant
+- **Ollama** (gepland) — lokaal LLM voor betere samenvattingen
+- **Claude API** (gepland) — cloud, beste kwaliteit
+- **OpenAI API** (gepland) — cloud alternatief
 
 ---
 
-## 5. User Interface — Alle Schermen
+## 6. TTS Engine Specificatie
+
+### Huidige implementatie: macOS Say
+
+| Eigenschap | Waarde |
+|-----------|--------|
+| Backend | `NSSpeechSynthesizer` |
+| Kwaliteit | Basis, herkenbaar als synthetisch |
+| Latency | Instant |
+| RAM | 0 (OS-level) |
+| Kosten | Gratis |
+| Status | ✅ Geïmplementeerd |
+
+### Gepland: Kokoro TTS
+- **Model**: Kokoro-82M (Apache 2.0 license)
+- **Kwaliteit**: Vergelijkbaar met ElevenLabs in blind tests
+- **Latency**: 40-70ms op GPU, 3-11x realtime op CPU
+- **RAM**: ~200MB voor model
+- **Voices**: 48+ stemmen, 8 talen
+- **Integratie**: Python wrapper via Swift `Process` of native ONNX runtime
+- **Apple Silicon**: Ondersteund via MPS (Metal Performance Shaders)
+- **Status**: ❌ Nog niet geïmplementeerd — UI toont "coming soon"
+
+### Gepland: ElevenLabs
+- **Kwaliteit**: Premium, zeer natuurlijk
+- **Latency**: 200-500ms (netwerk)
+- **Kosten**: ~$5/maand
+- **Integratie**: REST API
+- **Status**: ❌ Nog niet geïmplementeerd — UI toont "coming soon"
+
+### Gepland: Piper TTS
+- **Model**: ONNX-based VITS models
+- **Kwaliteit**: Goed, iets minder natuurlijk dan Kokoro
+- **Latency**: Zeer laag (<100ms)
+- **Status**: ❌ Nog niet geïmplementeerd — UI toont "coming soon"
+
+### TTS Settings (geïmplementeerd)
+- Engine selectie (macOS Say actief, rest disabled)
+- Speed (0.5x - 2.0x)
+- Volume (0-100%)
+- Interrupt on new command (toggle)
+
+---
+
+## 7. User Interface
 
 ### Brand Design Tokens (tools.theuws.com)
 
@@ -184,11 +335,6 @@ Typography:
   Headings:  Titillium Web (700, 600)
   Body:      Inter (400, 500)
   Monospace: SF Mono / Menlo (voor terminal output)
-
-Components:
-  Border radius: 4px (buttons), 8px (cards)
-  Shadows: 0 4px 6px rgba(0,0,0,0.3)
-  Transitions: 0.3s ease
 ```
 
 ---
@@ -196,23 +342,20 @@ Components:
 ### Scherm 1: Menu Bar Icon + Dropdown
 
 **Locatie**: macOS menu bar (rechts)
+**Icon**: Ear (👂) — VOX is een listener, niet een speaker
 
 ```
 ┌──────────────────────────────────────┐
-│  [VOX icon]  ← Klik = dropdown       │
+│  [👂 icon]  ← Klik = dropdown        │
 │                                      │
 │  ┌────────────────────────────────┐  │
-│  │ 🎤 VOX                   v0.1 │  │
+│  │ 👂 VOX                 v0.6.x │  │
 │  │ ─────────────────────────────  │  │
-│  │ Status: Listening / Idle       │  │
-│  │ Target: Terminal.app           │  │
+│  │ Status: Idle / Monitoring...   │  │
 │  │ Verbosity: ●●○○ Summary       │  │
 │  │ ─────────────────────────────  │  │
 │  │ 🔵 Last: "git status"         │  │
-│  │    → 3 files modified          │  │
-│  │ ─────────────────────────────  │  │
-│  │ ⌥Space  Push-to-talk          │  │
-│  │ ⌥⇧Space Toggle always-listen  │  │
+│  │    → On main, 3 modified.     │  │
 │  │ ─────────────────────────────  │  │
 │  │ ⚙ Settings...                 │  │
 │  │ 📋 History                    │  │
@@ -222,256 +365,100 @@ Components:
 ```
 
 **Gedrag**:
-- Icon verandert kleur: Idle (grijs), Listening (blauw pulsend), Processing (blauw draaiend), Error (rood)
-- Dropdown toont altijd laatste command + response preview
-- Keyboard shortcut: `⌥Space` voor push-to-talk (configureerbaar)
+- Icon: `ear` (idle), `eye` (monitoring)
+- Dropdown toont status, verbosity slider, laatste command + response
+- Links naar Settings en History windows
 
 ---
 
-### Scherm 2: Push-to-Talk Overlay
+### Scherm 2: Settings (4 tabs)
 
-**Locatie**: Zwevend HUD-venster, gecentreerd op scherm
-
-```
-┌─────────────────────────────────────┐
-│                                     │
-│          ┌───────────────┐          │
-│          │               │          │
-│          │   ◉ ◉ ◉ ◉    │  ← Waveform visualizer
-│          │  (pulserend)  │          │
-│          │               │          │
-│          └───────────────┘          │
-│                                     │
-│     "open het bestand utils.py"     │  ← Live transcriptie
-│                                     │
-│     Target: VS Code                 │  ← Actieve target
-│     ⌥Space to stop                  │          │
-└─────────────────────────────────────┘
-```
-
-**Gedrag**:
-- Verschijnt bij `⌥Space` (ingedrukt houden = push-to-talk, kort indrukken = toggle)
-- Toont live transcriptie van spraak (via Hex)
-- Waveform visualizer in accent blauw (#00629B)
-- Semi-transparante achtergrond (blur effect, macOS vibrancy)
-- Verdwijnt automatisch na command execution
-- Target app detectie: toont welke app momenteel focus heeft
-
----
-
-### Scherm 3: Settings — General
-
+**Tab 1: General**
 ```
 ┌─────────────────────────────────────────────────┐
 │ VOX Settings                              [×]   │
-│ ─────────────────────────────────────────────── │
-│ [General] [Voice] [Apps] [TTS] [Advanced]       │
+│ [General] [Apps] [TTS] [Advanced]               │
 │ ─────────────────────────────────────────────── │
 │                                                  │
 │ GENERAL                                          │
-│                                                  │
-│ Launch at login          [Toggle: ON]            │
-│ Menu bar icon style      [Dropdown: Monochrome]  │
-│ Theme                    [Dropdown: System]      │
-│                          ○ Dark  ○ Light  ● System│
-│                                                  │
-│ KEYBOARD SHORTCUTS                               │
-│                                                  │
-│ Push-to-talk             [⌥Space]     [Change]   │
-│ Toggle always-listen     [⌥⇧Space]   [Change]   │
-│ Cancel current command   [Escape]     [Change]   │
-│ Cycle verbosity          [⌥V]        [Change]   │
-│ Quick target switch      [⌥T]        [Change]   │
+│ Launch at login          [Toggle: OFF]           │
+│ Theme                    ○ Dark  ○ Light  ● System│
 │                                                  │
 │ LANGUAGE                                         │
-│                                                  │
 │ Input language           [Dropdown: Auto-detect] │
 │ Response language        [Dropdown: Follow input]│
 │                                                  │
 └─────────────────────────────────────────────────┘
 ```
 
----
-
-### Scherm 4: Settings — Voice Input (STT)
-
+**Tab 2: Apps**
 ```
 ┌─────────────────────────────────────────────────┐
-│ VOX Settings                              [×]   │
-│ ─────────────────────────────────────────────── │
-│ [General] [Voice] [Apps] [TTS] [Advanced]       │
+│ [General] [Apps] [TTS] [Advanced]               │
 │ ─────────────────────────────────────────────── │
 │                                                  │
-│ SPEECH-TO-TEXT ENGINE                             │
-│                                                  │
-│ Engine                   [Dropdown: Hex]         │
-│                          ● Hex (recommended)     │
-│                          ○ Built-in (WhisperKit) │
-│                                                  │
-│ Hex Status               ● Connected             │
-│ Hex Version              v0.4.2                  │
-│ [Open Hex Settings]      [Install Hex]           │
-│                                                  │
-│ WHISPER MODEL (when using built-in)              │
-│                                                  │
-│ Model size               [Dropdown: large-v3]    │
-│                          Accuracy: ★★★★★         │
-│                          Speed: ★★★☆☆            │
-│                          RAM: ~1.5GB             │
-│                                                  │
-│ ACTIVATION MODE                                  │
-│                                                  │
-│ ● Push-to-talk (hold ⌥Space)                    │
-│ ○ Push-to-toggle (press ⌥Space)                 │
-│ ○ Voice-activated (wake word: "Hey Vox")         │
-│ ○ Always listening                               │
-│                                                  │
-│ VOICE TEST                                       │
-│ [🎤 Test microphone]    Level: ████████░░ 82%   │
-│                                                  │
-└─────────────────────────────────────────────────┘
-```
-
----
-
-### Scherm 5: Settings — Apps (Target Configuration)
-
-```
-┌─────────────────────────────────────────────────┐
-│ VOX Settings                              [×]   │
-│ ─────────────────────────────────────────────── │
-│ [General] [Voice] [Apps] [TTS] [Advanced]       │
-│ ─────────────────────────────────────────────── │
-│                                                  │
-│ TARGET APPS                                      │
-│                                                  │
+│ MONITORED APPS                                   │
 │ Auto-detect active app   [Toggle: ON]            │
 │                                                  │
 │ ┌─────────────────────────────────────────────┐ │
 │ │ ● Terminal.app          Verbosity: Summary  │ │
-│ │   Status: Active        [Configure]         │ │
 │ ├─────────────────────────────────────────────┤ │
 │ │ ● iTerm2                Verbosity: Summary  │ │
-│ │   Status: Active        [Configure]         │ │
 │ ├─────────────────────────────────────────────┤ │
 │ │ ● Claude Code (CLI)     Verbosity: Summary  │ │
-│ │   Status: Active        [Configure]         │ │
-│ ├─────────────────────────────────────────────┤ │
-│ │ ○ VS Code               Verbosity: Ping     │ │
-│ │   Status: Not installed [Install Extension] │ │
-│ ├─────────────────────────────────────────────┤ │
-│ │ ○ Cursor                Verbosity: Summary  │ │
-│ │   Status: Not installed [Install Extension] │ │
-│ ├─────────────────────────────────────────────┤ │
-│ │ ○ Windsurf              Verbosity: Summary  │ │
-│ │   Status: Not detected  [Configure Path]    │ │
 │ └─────────────────────────────────────────────┘ │
 │                                                  │
-│ TARGET ROUTING                                   │
-│                                                  │
-│ Default target           [Dropdown: Auto-detect] │
-│ Fallback target          [Dropdown: Terminal]     │
-│                                                  │
-│ COMMAND PREFIXES (optional voice routing)         │
-│ "terminal ..."  → Terminal.app                    │
-│ "code ..."      → VS Code / Cursor / Windsurf    │
-│ "claude ..."    → Claude Code CLI                 │
-│ "git ..."       → Git (via active terminal)       │
+│ Default target           [Dropdown: Terminal]    │
 │                                                  │
 └─────────────────────────────────────────────────┘
 ```
 
----
-
-### Scherm 6: Settings — TTS (Text-to-Speech Output)
-
+**Tab 3: TTS**
 ```
 ┌─────────────────────────────────────────────────┐
-│ VOX Settings                              [×]   │
-│ ─────────────────────────────────────────────── │
-│ [General] [Voice] [Apps] [TTS] [Advanced]       │
+│ [General] [Apps] [TTS] [Advanced]               │
 │ ─────────────────────────────────────────────── │
 │                                                  │
 │ TEXT-TO-SPEECH ENGINE                             │
+│ Engine        ● macOS Say (built-in)             │
+│               ○ Kokoro (coming soon)             │
+│               ○ ElevenLabs (coming soon)         │
+│               ○ Disabled                         │
 │                                                  │
-│ Engine                   [Dropdown: Kokoro]      │
-│                          ● Kokoro (recommended,  │
-│                            lokaal, 82M params)   │
-│                          ○ Piper (lokaal, snel)  │
-│                          ○ macOS Say (ingebouwd) │
-│                          ○ ElevenLabs (cloud)    │
-│                          ○ Disabled              │
-│                                                  │
-│ KOKORO SETTINGS                                  │
-│ Voice                    [Dropdown: af_heart]    │
-│ Speed                    [Slider: 1.0x ─●── 2.0x]│
-│ [▶ Preview voice]                                │
-│                                                  │
-│ ELEVENLABS SETTINGS (if selected)                │
-│ API Key                  [••••••••] [Show/Hide]  │
-│ Voice ID                 [Dropdown: Rachel]      │
-│ [▶ Preview voice]                                │
+│ Speed         [Slider: 1.0x ────●── 2.0x]       │
+│ Volume        [Slider: ████████░░ 80%]           │
+│ [▶ Test Voice]                                   │
 │                                                  │
 │ DEFAULT VERBOSITY                                │
-│                                                  │
-│ Global default           [Slider]                │
 │ ○ Silent  ○ Ping  ● Summary  ○ Full             │
 │                                                  │
 │ Error escalation         [Toggle: ON]            │
 │ Error verbosity          [Dropdown: Summary]     │
-│                                                  │
-│ AUDIO OUTPUT                                     │
-│ Output device            [Dropdown: System Default]│
-│ Volume                   [Slider: ████████░░ 80%] │
-│ Interrupt on new command [Toggle: ON]             │
+│ Interrupt on new command [Toggle: ON]            │
 │                                                  │
 └─────────────────────────────────────────────────┘
 ```
 
----
-
-### Scherm 7: Settings — Advanced
-
+**Tab 4: Advanced**
 ```
 ┌─────────────────────────────────────────────────┐
-│ VOX Settings                              [×]   │
-│ ─────────────────────────────────────────────── │
-│ [General] [Voice] [Apps] [TTS] [Advanced]       │
+│ [General] [Apps] [TTS] [Advanced]               │
 │ ─────────────────────────────────────────────── │
 │                                                  │
 │ SUMMARY ENGINE                                   │
+│ Method        ● Heuristic (geen LLM)             │
+│               ○ Ollama (coming soon)             │
+│               ○ Claude API (coming soon)         │
+│               ○ OpenAI API (coming soon)         │
 │                                                  │
-│ Summarization method     [Dropdown: Heuristic]   │
-│                          ● Heuristic (geen LLM)  │
-│                          ○ Ollama (lokaal LLM)   │
-│                          ○ Claude API             │
-│                          ○ OpenAI API             │
+│ Max summary length       [Slider: 2 sentences]   │
 │                                                  │
-│ Ollama model (if selected)                       │
-│ Model                    [Dropdown: llama3.2:3b] │
-│ Ollama URL               [localhost:11434]       │
-│                                                  │
-│ Max summary length       [Slider: 2 zinnen]      │
-│                                                  │
-│ TERMINAL SETTINGS                                │
-│                                                  │
-│ Shell                    [Dropdown: Auto-detect]  │
-│ Working directory        [Dropdown: Follow terminal]│
-│ Command timeout          [Slider: 30s]           │
+│ TERMINAL MONITORING                              │
+│ Monitor timeout          [Slider: 30s]           │
 │ Max output capture       [Slider: 10000 chars]   │
 │                                                  │
-│ SAFETY                                           │
-│                                                  │
-│ Confirm destructive commands  [Toggle: ON]       │
-│ Destructive patterns:                            │
-│   rm -rf, DROP TABLE, git push --force,          │
-│   docker rm, sudo, shutdown                      │
-│ [Edit patterns...]                               │
-│                                                  │
 │ LOGGING                                          │
-│                                                  │
-│ Log commands to file     [Toggle: OFF]           │
-│ Log location             [~/. vox/logs/]         │
+│ Log to file              [Toggle: OFF]           │
 │                                                  │
 │ DATA                                             │
 │ [Export settings]  [Import settings]             │
@@ -482,454 +469,304 @@ Components:
 
 ---
 
-### Scherm 8: Command History
+### Scherm 3: Onboarding (3 stappen)
+
+```
+┌─────────────────────────────────────────────────┐
+│           VOX                                    │
+│   "Talk to your terminal. Hear what matters."    │
+│             ● ○ ○                                │
+│ ─────────────────────────────────────────────── │
+│                                                  │
+│     Step 1/3: Install Hex                        │
+│                                                  │
+│     VOX uses Hex for on-device speech            │
+│     recognition. Hex dictates into Terminal,     │
+│     VOX reads the response back.                 │
+│     No data leaves your Mac.                     │
+│                                                  │
+│     [Download Hex]  [Check Status]               │
+│     ✅ Hex detected and running!                 │
+│                                                  │
+│                              [Next →]            │
+└─────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────┐
+│             ● ● ○                                │
+│                                                  │
+│     Step 2/3: Choose TTS Engine                  │
+│                                                  │
+│     ● macOS Say (built-in, instant, no setup)    │
+│     ○ Kokoro (coming soon — local, free)         │
+│     ○ ElevenLabs (coming soon — cloud, premium)  │
+│                                                  │
+│     [▶ Test Voice]                               │
+│     ✅ TTS working!                              │
+│                                                  │
+│     [← Back]                     [Next →]        │
+└─────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────┐
+│             ● ● ●                                │
+│                                                  │
+│     Step 3/3: Test Your Setup                    │
+│                                                  │
+│     🟢 Hex is running                            │
+│                                                  │
+│     ⏳ Listening for Hex transcription...        │
+│     Try it now — dictate something with Hex!     │
+│                                                  │
+│     (auto-starts monitoring when step appears)   │
+│                                                  │
+│     VOX heard: "hello world"                     │
+│     ✅ VOX is ready!                             │
+│                                                  │
+│     [← Back]              [Start Using VOX]      │
+└─────────────────────────────────────────────────┘
+```
+
+**Geen permissions nodig**: Geen microphone dialog, geen accessibility dialog.
+
+---
+
+### Scherm 4: Command History
 
 ```
 ┌─────────────────────────────────────────────────┐
 │ VOX History                               [×]   │
 │ ─────────────────────────────────────────────── │
-│ [Search: ________________] [Filter: All ▼]      │
-│ ─────────────────────────────────────────────── │
 │                                                  │
-│ TODAY                                            │
 │ ┌─────────────────────────────────────────────┐ │
 │ │ 14:32  🟢 "git status"                     │ │
-│ │        → Terminal.app                       │ │
-│ │        Summary: 3 files gewijzigd           │ │
-│ │        [Copy] [Replay] [Expand]             │ │
+│ │        → Terminal.app (monitoring)          │ │
+│ │        Summary: On main, 3 modified.        │ │
 │ ├─────────────────────────────────────────────┤ │
-│ │ 14:30  🟢 "claude fix de login bug"        │ │
-│ │        → Claude Code                        │ │
-│ │        Summary: Bug in auth.py gefixt,      │ │
-│ │        3 bestanden aangepast.               │ │
-│ │        [Copy] [Replay] [Expand]             │ │
+│ │ 14:30  🟢 "claude fix the login bug"       │ │
+│ │        → Terminal.app (monitoring)          │ │
+│ │        Summary: Done. 2 files changed,      │ │
+│ │        tests passing.                       │ │
 │ ├─────────────────────────────────────────────┤ │
-│ │ 14:28  🔴 "npm run build"                  │ │
-│ │        → Terminal.app                       │ │
-│ │        Error: Module not found 'react-dom'  │ │
-│ │        [Copy] [Replay] [Expand]             │ │
+│ │ 14:28  🟢 "npm run build"                  │ │
+│ │        → Terminal.app (monitoring)          │ │
+│ │        Summary: Build completed             │ │
+│ │        successfully.                        │ │
 │ └─────────────────────────────────────────────┘ │
 │                                                  │
-│ YESTERDAY                                        │
-│ ┌─────────────────────────────────────────────┐ │
-│ │ 16:45  🟢 "deploy to staging"              │ │
-│ │ ...                                         │ │
-│ └─────────────────────────────────────────────┘ │
-│                                                  │
-│ [Clear History]              Showing 24 commands │
+│ [Clear All]                    Showing 3 entries │
 └─────────────────────────────────────────────────┘
 ```
 
 ---
 
-### Scherm 9: Destructive Command Confirmation
+## 8. Edge Cases & Error Handling
 
-```
-┌─────────────────────────────────────────────────┐
-│                                                  │
-│     ⚠️  DESTRUCTIVE COMMAND DETECTED             │
-│                                                  │
-│     Command: rm -rf node_modules/                │
-│     Target:  Terminal.app                        │
-│                                                  │
-│     This command matches a destructive pattern.  │
-│     Say "confirm" or "cancel" to proceed.        │
-│                                                  │
-│     [Cancel]                    [Confirm & Run]  │
-│                                                  │
-│     Auto-cancel in: 10s                          │
-│                                                  │
-└─────────────────────────────────────────────────┘
-```
-
----
-
-### Scherm 10: Onboarding / First Run
-
-```
-┌─────────────────────────────────────────────────┐
-│                                                  │
-│           VOX                                    │
-│           Voice-Operated eXecution               │
-│                                                  │
-│     ─────────────────────────────────            │
-│                                                  │
-│     Step 1/4: Microphone Access                  │
-│                                                  │
-│     VOX needs microphone access to               │
-│     hear your voice commands.                    │
-│                                                  │
-│     [Grant Access]                               │
-│                                                  │
-│     ─────────────────────────────────            │
-│                                                  │
-│     Step 2/4: Install Hex                        │
-│                                                  │
-│     VOX uses Hex for speech recognition.         │
-│     [Download Hex]  [I already have Hex]         │
-│                                                  │
-│     ─────────────────────────────────            │
-│                                                  │
-│     Step 3/4: Choose TTS Engine                  │
-│                                                  │
-│     ● Kokoro (recommended - local, free)         │
-│     ○ Piper (local, fast)                        │
-│     ○ macOS Say (built-in, basic)                │
-│     ○ ElevenLabs (cloud, premium quality)        │
-│     [Download Kokoro Model]                      │
-│                                                  │
-│     ─────────────────────────────────            │
-│                                                  │
-│     Step 4/4: Test Your Setup                    │
-│                                                  │
-│     Press ⌥Space and say "hello"                 │
-│     [🎤 Test Now]                                │
-│                                                  │
-│     ✅ "Hello" recognized!                       │
-│     🔊 "VOX is ready." played!                   │
-│                                                  │
-│     [Start Using VOX]                            │
-│                                                  │
-└─────────────────────────────────────────────────┘
-```
-
----
-
-## 6. Hex Bridge — Integratie Specificatie
-
-### Hoe Hex werkt
-Hex is een macOS menu bar app (Swift/SwiftUI) die on-device STT doet via:
-- **WhisperKit** (Core ML Whisper model)
-- **Parakeet TDT v3** (Core ML via FluidAudio)
-
-### Integratieopties (in volgorde van voorkeur)
-
-1. **Clipboard Bridge** (v0.1 - simpelst)
-   - Hex transcribeert spraak → plaatst tekst op clipboard
-   - VOX monitort clipboard changes met `NSPasteboard`
-   - VOX detecteert of change van Hex komt (via timing + format heuristiek)
-   - Pro: Geen aanpassingen aan Hex nodig
-   - Con: Deelt clipboard, latency
-
-2. **XPC Service** (v0.2 - ideaal)
-   - VOX registreert als XPC client van Hex
-   - Hex stuurt transcripties direct naar VOX via IPC
-   - Pro: Real-time, dedicated channel
-   - Con: Vereist Hex-side support (open PR)
-
-3. **File Watcher** (fallback)
-   - Hex schrijft transcripties naar een bekend pad
-   - VOX monitort dit bestand met `FSEvents`
-   - Pro: Simpel, robuust
-   - Con: Disk I/O, iets meer latency
-
-4. **Built-in WhisperKit** (standalone fallback)
-   - Als Hex niet geinstalleerd is, gebruik eigen WhisperKit integratie
-   - Dezelfde modellen als Hex, maar embedded in VOX
-   - Pro: Geen externe dependency
-   - Con: Dupliceert functionaliteit, meer RAM
-
----
-
-## 7. TTS Engine Specificatie
-
-### Tier 1: Kokoro (Recommended Default)
-- **Model**: Kokoro-82M (Apache 2.0 license)
-- **Kwaliteit**: Vergelijkbaar met ElevenLabs in blind tests
-- **Latency**: 40-70ms op GPU, 3-11x realtime op CPU
-- **RAM**: ~200MB voor model
-- **Voices**: 48+ stemmen, 8 talen
-- **Integratie**: Python wrapper via Swift `Process` of native ONNX runtime
-- **Apple Silicon**: Ondersteund via MPS (Metal Performance Shaders)
-
-### Tier 2: Piper TTS
-- **Model**: ONNX-based VITS models
-- **Kwaliteit**: Goed, iets minder natuurlijk dan Kokoro
-- **Latency**: Zeer laag (<100ms)
-- **RAM**: ~50-100MB
-- **Voices**: 100+ voices, vele talen incl. Nederlands
-- **Integratie**: CLI binary, makkelijk te wrappen
-
-### Tier 3: macOS `say` (Built-in Fallback)
-- **Model**: macOS native TTS
-- **Kwaliteit**: Basis, herkenbaar als synthetisch
-- **Latency**: Instant
-- **RAM**: 0 (OS-level)
-- **Integratie**: `NSSpeechSynthesizer` of `AVSpeechSynthesizer`
-
-### Tier 4: ElevenLabs (Cloud Premium)
-- **Model**: Proprietary
-- **Kwaliteit**: Premium, zeer natuurlijk
-- **Latency**: 200-500ms (netwerk)
-- **Kosten**: ~$5/maand voor basic plan
-- **Integratie**: REST API
-- **Vereist**: Internetverbinding + API key
-
----
-
-## 8. Command Flow — Gedetailleerd
-
-### Happy Path: Voice → Terminal → Response
-
-```
-1. User drukt ⌥Space (push-to-talk)
-2. VOX toont overlay met waveform
-3. User zegt: "git status"
-4. Hex transcribeert → "git status"
-5. VOX ontvangt transcriptie
-6. Command Router herkent: shell command
-7. Target: actieve Terminal.app window
-8. Terminal Executor runt: git status
-9. Output captured: "On branch main\n..."
-10. Response Processor:
-    - Verbosity = Summary
-    - Samenvatting: "Op main branch, 3 bestanden gewijzigd"
-11. TTS Engine spreekt samenvatting uit
-12. Menu bar icon: groen vinkje (2 seconden)
-13. History entry aangemaakt
-```
-
-### Flow: Voice → Claude Code → Summarized Response
-
-```
-1. User zegt: "claude fix de bug in auth module"
-2. Hex transcribeert → "claude fix de bug in auth module"
-3. Command Router herkent prefix "claude" → Claude Code target
-4. Terminal Executor runt: claude "fix de bug in auth module"
-5. VOX monitort stdout stream van Claude Code
-6. Claude Code produceert 500+ woorden output
-7. Response Processor:
-    - Verbosity = Summary
-    - Detecteert: bestanden gewijzigd (auth.py, tests/test_auth.py)
-    - Detecteert: "Done" / success status
-    - Samenvatting: "Auth bug gefixt. 2 bestanden aangepast. Tests slagen."
-8. TTS Engine spreekt samenvatting uit
-9. Volledige output beschikbaar in History → [Expand]
-```
-
-### Flow: Destructive Command
-
-```
-1. User zegt: "remove all node modules recursively"
-2. Hex transcribeert
-3. Command Router interpreteert: "rm -rf node_modules/"
-4. Safety check: matched "rm -rf" pattern
-5. Confirmation overlay verschijnt
-6. TTS: "Destructief command gedetecteerd: rm -rf node_modules. Zeg confirm of cancel."
-7a. User zegt "confirm" → command wordt uitgevoerd
-7b. User zegt "cancel" → command geannuleerd
-7c. 10 seconden timeout → auto-cancel
-```
-
----
-
-## 9. Edge Cases & Error Flows
-
-### STT Edge Cases
+### Hex Bridge Edge Cases
 
 | # | Edge Case | Handling |
 |---|-----------|----------|
-| E1 | Hex niet geinstalleerd | Toon onboarding stap, bied built-in WhisperKit aan |
-| E2 | Hex draait niet | Toon notificatie: "Start Hex om voice commands te gebruiken" |
-| E3 | Microfoon geen toegang | macOS permission dialog, daarna instructie in Settings |
-| E4 | Achtergrondgeluid / onverstaanbaar | Discard + TTS: "Niet verstaan. Probeer opnieuw." |
-| E5 | Zeer lange dictatie (>60 sec) | Warning na 30s, auto-stop na 60s met bevestigingsvraag |
-| E6 | Verkeerde taal gedetecteerd | Toon transcriptie in overlay zodat user kan cancellen |
-| E7 | Homofonen / ambigue commands | Toon transcriptie, wacht 1.5s voor correctie, dan execute |
-| E8 | Whisper model niet gedownload | Automatisch downloaden bij eerste gebruik, progress indicator |
+| E1 | Hex niet geïnstalleerd | Onboarding Step 1 toont download link. VOX werkt niet zonder Hex. |
+| E2 | Hex draait niet | Menu bar toont oranje indicator. "Launch Hex" knop in onboarding/settings. |
+| E3 | Hex history file niet gevonden | Silently retry. File verschijnt zodra Hex eerste dictaat doet. |
+| E4 | Hex history file corrupt/onleesbaar | `readHistoryEntries()` returned `nil`, retry bij volgende poll. |
+| E5 | Hex update wijzigt JSON structuur | `Decodable` parsing faalt gracefully. Toekomstige versie: version check. |
+| E6 | Hex dictaat naar niet-gemonitorde app | Entry gefilterd op `sourceAppBundleID`. Wordt genegeerd. |
+| E7 | Meerdere snelle dictaten achtereen | Elk entry wordt sequentieel verwerkt. Nieuwe entry tijdens `.monitoring` wordt genegeerd (guard check). |
 
-### Command Routing Edge Cases
-
-| # | Edge Case | Handling |
-|---|-----------|----------|
-| E9 | Geen terminal window open | Open nieuw Terminal.app window automatisch |
-| E10 | Target app niet geinstalleerd | Foutmelding + suggestie om app te installeren |
-| E11 | Ambigue target (meerdere terminals open) | Gebruik de meest recent gefocuste terminal |
-| E12 | Command niet herkenbaar als shell/IDE | Vraag bevestiging: "Wil je dit als terminal command uitvoeren?" |
-| E13 | Zeer lang command (>500 chars) | Toon preview, vraag bevestiging |
-| E14 | Command bevat wachtwoord/secret | NOOIT loggen, mask in history |
-| E15 | Path met spaties in command | Automatisch quoten |
-
-### Execution Edge Cases
+### Terminal Monitoring Edge Cases
 
 | # | Edge Case | Handling |
 |---|-----------|----------|
-| E16 | Command timeout (>30s default) | TTS: "Command duurt langer dan verwacht. Wachten of annuleren?" |
-| E17 | Command vereist interactie (y/n prompt) | Detecteer prompt, vraag user via voice |
-| E18 | Command produceert enorme output (>10MB) | Truncate output, samenvatting op eerste 10K chars |
-| E19 | Command faalt met exit code ≠ 0 | Error escalation: verhoog verbosity, toon error |
-| E20 | Sudo vereist wachtwoord | TTS: "Dit command vereist sudo. Voer wachtwoord handmatig in." |
-| E21 | Process crashed / SIGTERM | Rapporteer crash, log voor debugging |
-| E22 | Netwerk vereist maar offline | Detecteer, meld: "Geen internetverbinding" |
+| E8 | Geen terminal window open | `readTerminalContent()` returned `nil`. TTS: "No terminal window found." |
+| E9 | Terminal output verandert niet (geen commando) | Output stabilization na 1.5s, diff is leeg → "No new output." |
+| E10 | Zeer lange output (>10K chars) | Truncated op `maxOutputCapture` setting. |
+| E11 | Monitor timeout (>30s) | Returned whatever output beschikbaar is. Setting configureerbaar. |
+| E12 | Terminal wisselt van tab tijdens monitoring | Snapshot was van oorspronkelijke tab. Mogelijke mismatch. Acceptabel voor MVP. |
+| E13 | Streaming output (bijv. Claude Code) | Stabilization delay (1.5s) vangt dit op — wacht tot output stopt. |
+| E14 | ANSI escape codes in output | `cleanForSpeech()` stripped ANSI codes voor TTS. |
 
 ### TTS Edge Cases
 
 | # | Edge Case | Handling |
 |---|-----------|----------|
-| E23 | Kokoro model niet gedownload | Download bij eerste gebruik, fallback naar macOS Say |
-| E24 | TTS engine crashed | Fallback naar macOS Say, log error |
-| E25 | Audio output device disconnected | Detecteer, switch naar default, meld aan user |
-| E26 | User spreekt terwijl TTS afspeelt | Stop TTS onmiddellijk (interrupt), start nieuwe listening |
-| E27 | Response bevat code/special characters | Strip code blocks, lees alleen tekst |
-| E28 | Response in onverwachte taal | Lees in detected taal, of skip met "Response beschikbaar in history" |
-| E29 | ElevenLabs API rate limit | Fallback naar lokale TTS, meld rate limit |
-| E30 | ElevenLabs API key ongeldig | Duidelijke foutmelding in Settings, fallback |
+| E15 | TTS engine disabled | Verbosity forced to Silent. Alleen visuele feedback. |
+| E16 | NSSpeechSynthesizer deprecated warning | Acceptabel voor MVP. Migratie naar AVSpeechSynthesizer gepland. |
+| E17 | Nieuw Hex dictaat terwijl TTS spreekt | `interruptOnNewCommand` setting. Default: stop TTS, start nieuwe monitoring. |
+| E18 | Response bevat code blocks | `cleanForSpeech()` vervangt code blocks met "(code block omitted)". |
+| E19 | Response bevat URLs | `cleanForSpeech()` vervangt URLs met "link to [domain]". |
 
 ### System Edge Cases
 
 | # | Edge Case | Handling |
 |---|-----------|----------|
-| E31 | macOS update breekt Accessibility permissions | Detecteer, toon re-authorize instructie |
-| E32 | Hex update breekt compatibiliteit | Version check bij startup, waarschuwing als incompatibel |
-| E33 | Onvoldoende geheugen voor Whisper model | Detecteer beschikbaar RAM, suggereer kleiner model |
-| E34 | App conflict met andere voice tools | Detecteer (bijv. Siri), waarschuw over conflict |
-| E35 | Multiple VOX instances | Prevent via `NSRunningApplication` check |
+| E20 | Multiple VOX instances | Prevent via single-instance check. |
+| E21 | macOS update breekt AppleScript | Terminal reading faalt silently. Toekomstige versie: error reporting. |
+| E22 | Hex update breekt history format | JSON decode faalt gracefully, retry bij volgende poll. |
+| E23 | App launch na sleep/wake | HexBridge re-seeds timestamp, voorkomt replay van oude entries. |
 
 ---
 
-## 10. Niet-functionele Eisen
+## 9. Niet-functionele Eisen
 
-| Eis | Target | Meetmethode |
-|-----|--------|-------------|
-| STT latency (Hex → VOX) | <200ms | Timestamp delta |
-| Command execution start | <100ms na herkenning | Timestamp delta |
-| TTS start (na output) | <500ms (lokaal), <1s (cloud) | Timestamp delta |
-| RAM gebruik (idle) | <80MB | Activity Monitor |
-| RAM gebruik (listening) | <200MB (excl. Whisper model) | Activity Monitor |
-| CPU idle | <1% | Activity Monitor |
-| App launch time | <2s | Cold start measurement |
-| Binary size | <30MB (excl. models) | du -sh |
-| Crash rate | <0.1% per sessie | Crash logs |
-
----
-
-## 11. Security & Privacy
-
-1. **Geen cloud vereist**: Alle core functionaliteit werkt 100% offline (Hex + Kokoro/Piper)
-2. **Geen telemetrie**: Geen analytics, geen tracking, geen data naar servers
-3. **Geen audio opslag**: Spraak wordt niet opgeslagen, alleen transcripties (optioneel)
-4. **Wachtwoord detectie**: Commands die wachtwoorden/secrets bevatten worden gemaskeerd in logs
-5. **Destructive command protection**: Configureerbare safeguards
-6. **Sandbox**: App draait in macOS sandbox waar mogelijk
-7. **Open source audit**: Volledige broncode publiek, reviewbaar
-8. **API keys encrypted**: ElevenLabs/Ollama keys opgeslagen in macOS Keychain
+| Eis | Target | Huidige status |
+|-----|--------|---------------|
+| Hex → VOX detectie latency | <500ms | ✅ ~300ms (0.3s poll interval) |
+| TTS start na output stabilisatie | <200ms | ✅ Instant (macOS Say) |
+| RAM gebruik (idle) | <50MB | ✅ ~30MB |
+| CPU idle | <1% | ✅ Timer-based polling is lightweight |
+| App launch time | <2s | ✅ ~1s |
+| Binary size | <5MB | ✅ 1.3MB |
+| Crash rate | <0.1% per sessie | ✅ Geen crashes gerapporteerd |
+| Test coverage | 32 tests | ✅ VerbosityLevel, TargetApp, VoxCommand |
 
 ---
 
-## 12. Release Roadmap
+## 10. Security & Privacy
 
-### v0.1.0 — "First Words" (MVP)
-- Menu bar app met push-to-talk
-- Hex clipboard bridge voor STT
-- Terminal command execution
-- macOS `say` TTS (built-in fallback)
-- Verbosity levels (Silent, Ping, Summary via heuristic)
-- Basic command history
-- Onboarding flow
-- Destructive command safeguard
-
-### v0.2.0 — "Find Your Voice"
-- Kokoro TTS integratie
-- Piper TTS integratie
-- ElevenLabs TTS integratie
-- Improved summarization (Ollama optie)
-- VS Code / Cursor / Windsurf integratie
-- XPC bridge voor Hex (als Hex dit ondersteunt)
-- Voice-activated wake word ("Hey Vox")
-
-### v0.3.0 — "Full Control"
-- Antigravity integratie (indien API beschikbaar)
-- Git-specifieke voice commands ("commit met bericht ...")
-- Docker voice commands
-- SSH session support
-- Plugin systeem voor custom app connectors
-- Community voice command library
-
-### v1.0.0 — "Production Ready"
-- Alle MoSCoW Must + Should items compleet
-- Volledige test coverage
-- Performance geoptimaliseerd
-- Documentatie compleet
-- Homebrew installatie (`brew install vox`)
+1. **Geen permissions**: Geen microphone, geen accessibility, geen camera
+2. **Geen cloud vereist**: Alle core functionaliteit werkt 100% offline
+3. **Geen telemetrie**: Geen analytics, geen tracking, geen data naar servers
+4. **Geen audio opslag**: VOX neemt niets op — Hex doet de STT
+5. **Lokale verwerking**: Terminal content wordt alleen in-memory verwerkt
+6. **Geen credentials**: VOX slaat geen wachtwoorden of API keys op (toekomstig: Keychain voor ElevenLabs)
+7. **Open source**: Volledige broncode publiek op GitHub, MIT-licensed
+8. **Minimale footprint**: Alleen file reading (Hex history) en AppleScript (terminal content)
 
 ---
 
-## 13. Audit Checklist — PRD Completeness
+## 11. Release History & Roadmap
 
-Gebruik deze checklist om te verifiëren dat de PRD alle benodigde elementen bevat:
+### Gerealiseerd
+
+#### v0.1.0 → v0.5.0 — "Voice-Operated Assistant" (gearchiveerd)
+Oorspronkelijke architectuur met push-to-talk, command execution, safety checks, accessibility permissions. **Volledig verwijderd in v0.6.0.**
+
+#### v0.6.0 — "Hex Companion" (2026-02-11)
+- Gestript tot pure Hex companion: ~1,500 regels verwijderd
+- Verwijderd: HotkeyManager, CommandRouter, TerminalExecutor, SafetyChecker, PushToTalkOverlay, DestructiveConfirmView
+- Vereenvoudigd: 2 app modes (was 5), 3 onboarding stappen (was 6), 4 settings tabs (was 5)
+- Geen permissions meer nodig
+
+#### v0.6.1 — "Auto-start Voice Test" (2026-02-11)
+- Onboarding Step 3 start monitoring automatisch (geen "Start Test" knop meer)
+- Monitoring stopt bij navigatie terug naar Step 2
+- Hex launch → auto-retry monitoring
+
+### Gepland
+
+#### v0.7.0 — "Better Voices" (gepland)
+- Kokoro TTS integratie (lokaal, 82M params, near-ElevenLabs kwaliteit)
+- Voice selectie en preview
+- Mogelijk: Piper TTS als lightweight alternatief
+
+#### v0.8.0 — "Smarter Summaries" (gepland)
+- Ollama integratie voor LLM-based samenvattingen
+- Betere Claude Code output parsing
+- Configureerbare samenvatting prompts
+
+#### v0.9.0 — "Polish" (gepland)
+- ElevenLabs TTS integratie (cloud premium)
+- AVSpeechSynthesizer migratie (NSSpeechSynthesizer deprecation)
+- Export/import settings
+- Betere error handling en user feedback
+
+#### v1.0.0 — "Production Ready" (gepland)
+- Homebrew installatie (`brew install --cask vox`)
+- DMG distribution met notarization
+- CI/CD via GitHub Actions
+- Volledige documentatie
+- Community feedback verwerkt
+
+---
+
+## 12. Scope Grenzen (Won't Have)
+
+| Feature | Reden |
+|---------|-------|
+| Command execution | VOX voert geen commands uit — Hex typt, terminal voert uit |
+| Push-to-talk / hotkeys | Hex heeft eigen hotkey — VOX hoeft niet te luisteren |
+| Microphone access | Hex doet alle STT |
+| Accessibility permissions | VOX leest terminal via AppleScript, niet via accessibility API |
+| IDE integratie (VS Code, Cursor) | VOX monitort alleen Terminal.app / iTerm2 |
+| Browser-based tools | Out of scope |
+| Windows/Linux | macOS-only |
+| Wake word ("Hey VOX") | Hex heeft eigen activatie |
+| Destructive command safeguards | VOX voert geen commands uit |
+
+---
+
+## 13. Open Vragen
+
+1. **Kokoro integratie**: Python subprocess of native ONNX Swift binding? Python is sneller te implementeren, ONNX is natiever.
+2. **Ollama samenvatting**: Welk model? llama3.2:3b is klein en snel, maar kwaliteit moet getest worden.
+3. **App distributie**: Homebrew Cask, DMG download, of beide?
+4. **CI/CD**: GitHub Actions met Swift build + notarization?
+5. **Terminal reading**: Kan AppleScript vervangen worden door een robuustere methode? (bijv. terminal multiplexer integratie)
+
+---
+
+## 14. Audit Checklist — PRD Completeness
 
 ### Product Definitie
 - [x] Product naam en one-liner
 - [x] Doelgroep gedefinieerd
 - [x] Core value proposition
 - [x] Kernprincipes/design principles
+- [x] "Hoe het werkt" flow
 
 ### Technische Specificatie
 - [x] Programmeertaal keuze met onderbouwing
-- [x] Architectuurdiagram
-- [x] Core modules beschreven
-- [x] STT integratie (Hex bridge) gespecificeerd
-- [x] TTS engines gespecificeerd met tiers
-- [x] Response verbosity system volledig beschreven
+- [x] Architectuurdiagram (actueel)
+- [x] Services beschreven (5)
+- [x] Models beschreven (5)
+- [x] Views beschreven (4)
 
-### MoSCoW Prioritering
-- [x] Must Have apps gedefinieerd
-- [x] Should Have apps gedefinieerd
-- [x] Could Have apps gedefinieerd
-- [x] Won't Have scope grenzen
+### Hex Bridge
+- [x] JSON structuur gedocumenteerd
+- [x] File monitoring methode beschreven
+- [x] Timestamp seeding uitgelegd
+- [x] Source app filtering beschreven
 
-### UI/UX Specificatie
-- [x] Brand design tokens (tools.theuws.com aligned)
-- [x] Scherm 1: Menu Bar dropdown
-- [x] Scherm 2: Push-to-Talk overlay
-- [x] Scherm 3: Settings — General
-- [x] Scherm 4: Settings — Voice Input
-- [x] Scherm 5: Settings — Apps
-- [x] Scherm 6: Settings — TTS
-- [x] Scherm 7: Settings — Advanced
-- [x] Scherm 8: Command History
-- [x] Scherm 9: Destructive Command Confirmation
-- [x] Scherm 10: Onboarding / First Run
+### Terminal Monitoring
+- [x] AppleScript methode beschreven
+- [x] Output stabilization algorithm
+- [x] Diff-extractie uitgelegd
 
-### Command Flows
-- [x] Happy path: Voice → Terminal → Response
-- [x] Happy path: Voice → Claude Code → Summary
-- [x] Destructive command flow
-- [x] Hex bridge communication flow
+### Verbosity System
+- [x] 4 levels beschreven
+- [x] Heuristic summarization per command type
+- [x] Speech cleaning regels
+- [x] Toekomstige LLM opties gedocumenteerd
 
-### Edge Cases & Error Handling
-- [x] STT edge cases (E1-E8)
-- [x] Command routing edge cases (E9-E15)
-- [x] Execution edge cases (E16-E22)
-- [x] TTS edge cases (E23-E30)
-- [x] System edge cases (E31-E35)
+### TTS Engine
+- [x] Huidige implementatie (macOS Say)
+- [x] Geplande engines (Kokoro, ElevenLabs, Piper)
+
+### UI Specificatie
+- [x] Brand design tokens
+- [x] Menu bar dropdown
+- [x] Settings (4 tabs)
+- [x] Onboarding (3 stappen)
+- [x] Command History
+
+### Edge Cases
+- [x] Hex bridge edge cases (E1-E7)
+- [x] Terminal monitoring edge cases (E8-E14)
+- [x] TTS edge cases (E15-E19)
+- [x] System edge cases (E20-E23)
 
 ### Niet-functionele Eisen
-- [x] Performance targets (latency, RAM, CPU)
-- [x] Security & privacy requirements
-- [x] Reliability targets (crash rate)
+- [x] Performance targets met huidige status
+- [x] Security & privacy
+- [x] Test coverage
 
 ### Planning
-- [x] Release roadmap met versies
-- [x] Feature toewijzing per versie
-
-### Open Source
-- [x] License model (MIT)
-- [x] Privacy-first approach
-- [x] No telemetry policy
+- [x] Release history
+- [x] Roadmap v0.7 → v1.0
+- [x] Scope grenzen (Won't Have)
+- [x] Open vragen
 
 ---
 
-## 14. Open Vragen / Beslissingen voor Development
-
-1. **Hex PR**: Moeten we een PR indienen bij Hex voor XPC/IPC support, of bouwen we eerst op clipboard bridge?
-2. **Kokoro integratie**: Python subprocess of native ONNX Swift binding?
-3. **Samenvatting engine**: Starten met heuristic-only of direct Ollama integratie?
-4. **App distributie**: Mac App Store, Homebrew, of direct DMG download?
-5. **CI/CD**: GitHub Actions met Swift build + notarization?
-
----
-
-*PRD Versie 0.1.0 — Draft voor review*
+*PRD Versie 2.0.0 — Reflects v0.6.x Hex Companion architecture*
 *Brand: tools.theuws.com style guide applied*
-*Datum: 2026-02-10*
+*Datum: 2026-02-11*

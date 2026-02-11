@@ -5,6 +5,11 @@ All notable changes to VOX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.6.2] - 2026-02-11
+
+### Changed
+- **PRD rewritten to v2.0.0**: Complete rewrite of `docs/PRD.md` from voice-operated assistant (v0.1.0, 936 lines) to Hex companion architecture (v2.0.0, 773 lines). Now accurately documents the current passive monitoring architecture, Hex Bridge file monitoring, terminal output stabilization, heuristic summarization engine, and updated roadmap (v0.7–v1.0).
+
 ## [0.6.1] - 2026-02-11
 
 ### Fixed
