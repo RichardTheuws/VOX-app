@@ -5,6 +5,13 @@ All notable changes to VOX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.6.1] - 2026-02-11
+
+### Fixed
+- **Onboarding Step 3 auto-starts monitoring**: Voice test now automatically starts listening for Hex transcriptions when Step 3 appears, removing the need to click a separate "Start Test" button.
+- **Monitoring stops on navigation**: Going back to Step 2 properly stops HexBridge monitoring.
+- **Hex launch auto-retry**: Clicking "Launch Hex" now automatically starts monitoring after Hex launches.
+
 ## [0.6.0] - 2026-02-11
 
 ### Changed
