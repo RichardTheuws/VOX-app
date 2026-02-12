@@ -5,6 +5,56 @@ All notable changes to VOX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.10.4] - 2026-02-12
+
+### Fixed
+- **AI chat response reading finally works**: VOX now correctly reads Cursor's AI chat panel responses. The root cause: Chromium renders chat text as hundreds of tiny `AXStaticText` fragments (~12-18 chars each) at consistent AX tree depths. The previous harvest strategy filtered these out (each fragment was below the 80-char minimum). New **Chat Fragment Assembly** strategy collects ALL `AXStaticText` elements, groups consecutive same-depth fragments, concatenates them, and returns the last substantial block (= latest AI response).
+
+### Added
+- **`assembleChatFragments()` method**: New Strategy 0 (highest priority) in AccessibilityReader. Collects all AXStaticText fragments from the window tree with their depths, filters to chat depth (>= 30), groups consecutive same-depth fragments into message blocks, returns the last block with > 100 chars concatenated.
+- **`collectStaticTextFragments()` helper**: Tree traversal that collects only AXStaticText element values with their tree depths. No minimum character filter — needed to capture all 12-18 char fragments for reassembly.
+- **Chat depth constants**: `chatMinDepth` (30) excludes UI chrome; `chatMinGroupChars` (100) filters out meta-labels like "Thought", "Agent".
+
+### Technical
+- `AccessibilityReader.swift` — New `assembleChatFragments()` as Strategy 0 before harvest, `collectStaticTextFragments()` helper, `chatMinDepth`/`chatMinGroupChars` constants. Strategy order: 0 (chatAssembly) → 1 (harvest) → 2 (system) → 3 (focused)
+
+## [0.10.3] - 2026-02-12
+
+### Added
+- **Comprehensive AX tree diagnostic**: One-time deep diagnostic dump on first read that scans the FULL window AX tree (maxDepth=60, up to 5000 elements). Writes detailed analysis to `~/Library/Logs/VOX-ax-diagnostic.log`.
+- **AXWebArea detection**: Diagnostic identifies ALL webview elements (AXWebArea) in the window — critical for finding Cursor's chat panel vs editor panel.
+- **Chromium DOM attributes**: Diagnostic checks `AXDOMIdentifier`, `AXDOMClassList`, and `AXARIALive` attributes that Chromium may expose for web elements.
+- **StringForRange text extraction**: Diagnostic reads text from elements that expose `kAXNumberOfCharactersAttribute` + `kAXStringForRangeParameterizedAttribute` — catches text hidden from standard value/description/title attributes.
+- **AXStaticText inventory**: Diagnostic specifically logs all `AXStaticText` elements (Chromium's text nodes) to reveal whether chat content exists as fragmented text.
+- **Role distribution**: Full count of every AX role type in the tree for structural analysis.
+- **Text fragment analysis**: All text fragments (no minimum) with size distribution (<10, 10-50, 50-80, 80+ chars) and detailed dump of fragments >30 chars.
+
+### Technical
+- `AccessibilityReader.swift` — Added `hasDumpedDiagnostic` flag, `dumpFullDiagnostic()` method with nested `scanTree()` and `countTextInSubtree()`, checks AXDOMIdentifier/AXDOMClassList/AXARIALive/kAXNumberOfCharactersAttribute/kAXStringForRangeParameterizedAttribute
+
+## [0.10.2] - 2026-02-12
+
+### Fixed
+- **AI chat response reading**: VOX now finds Cursor's AI response text regardless of where the cursor is focused. Previously, VOX followed the focused input field and only found UI strings like "Add a follow-up" instead of the actual AI response.
+- **Deep content harvest strategy**: New primary reading strategy scans the entire focused window AX tree (maxDepth=50) for substantial text blocks (> 80 chars). Reads kAXValue, kAXDescription, AND kAXTitle from every element — not just specific roles. This finds AI chat content that lives in a sibling subtree of the input field.
+- **Content threshold filtering**: All strategies now require > 80 chars minimum to accept text as valid content. Prevents UI labels ("Add a follow-up", "Review", "53 Files") from being mistaken for real content.
+
+### Technical
+- `AccessibilityReader.swift` — Complete rewrite: new `harvestWindowContent()` as primary strategy, `collectAllText()` reads all attributes from all elements, `HarvestedText` struct with role/attribute/depth metadata, `titleValue()` helper, `minimumContentLength` constant (80), removed role-specific `collectTextValues()` and `textRoles`
+
+## [0.10.1] - 2026-02-12
+
+### Fixed
+- **Accessibility permission auto-request**: VOX now detects when AX permission is missing and shows the System Settings prompt automatically (once per session). Previously, rebuilds silently invalidated the permission without user feedback.
+- **AXManualAccessibility for Electron apps**: VOX now explicitly enables Chromium's accessibility tree via `AXManualAccessibility` attribute before reading content. Electron (Cursor, VS Code, Windsurf) disables its AX tree by default for performance.
+- **System-wide focused element (Strategy 0)**: New reading strategy uses `AXUIElementCreateSystemWide()` to bypass app-level AX tree issues. Verifies PID ownership, reads value/description, and traverses parent chain for content containers. This is now the first strategy attempted before app-level approaches.
+- **Extended AX element support**: `collectTextValues()` now reads `AXGroup` elements (via `kAXDescriptionAttribute`) and `AXWebArea` elements (via `kAXValueAttribute`), covering more of Chromium's AX tree structure.
+- **Enhanced AX diagnostics**: Debug logging now includes `AXManualAccessibility` return status, system-wide focused element details (role, PID, value/description sizes), window identity (role, title), and direct children structure (roles, descriptions, child counts). Logs to `~/Library/Logs/VOX-ax-debug.log`.
+
+### Technical
+- `AccessibilityReader.swift` — Added `hasRequestedPermission` flag, `enableAccessibilityTree(for:)` with `AXManualAccessibility`, `readSystemFocusedText(expectedPID:)` Strategy 0, `descriptionValue(of:)` helper, extended `collectTextValues()` for AXGroup + AXWebArea, enhanced window diagnostics
+- `TerminalReader.swift` — Added debug logging to `waitForNewOutput()` (poll count, change count, nil count, content sizes)
+
 ## [0.10.0] - 2026-02-12
 
 ### Added

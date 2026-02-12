@@ -48,16 +48,29 @@ final class TerminalReader {
         var lastContent = initialSnapshot
         var lastChangeTime = Date()
         let isTerminal = Self.terminalBasedBundleIDs.contains(bundleID)
+        var pollCount = 0
+        var changeCount = 0
+        var nilCount = 0
+
+        AccessibilityReader.debugLog("=== waitForNewOutput START ===")
+        AccessibilityReader.debugLog("  bundleID=\(bundleID) isTerminal=\(isTerminal) timeout=\(timeout)")
+        AccessibilityReader.debugLog("  snapshot: \(initialSnapshot.count) chars")
 
         // Small initial delay to let the command start producing output
         try? await Task.sleep(for: .milliseconds(500))
 
         while Date().timeIntervalSince(startTime) < timeout {
             try? await Task.sleep(for: .seconds(pollInterval))
+            pollCount += 1
 
-            guard let content = await readContent(for: bundleID) else { continue }
+            guard let content = await readContent(for: bundleID) else {
+                nilCount += 1
+                continue
+            }
 
             if content != lastContent {
+                changeCount += 1
+                AccessibilityReader.debugLog("  poll[\(pollCount)] CHANGED: \(content.count) chars (was \(lastContent.count))")
                 lastContent = content
                 lastChangeTime = Date()
             }
@@ -66,15 +79,19 @@ final class TerminalReader {
             if Date().timeIntervalSince(lastChangeTime) >= stabilizeDelay {
                 let newContent = extractNewContent(before: initialSnapshot, after: lastContent, isTerminalBased: isTerminal)
                 if !newContent.isEmpty {
+                    AccessibilityReader.debugLog("  STABILIZED after \(pollCount) polls, \(changeCount) changes, \(nilCount) nils")
+                    AccessibilityReader.debugLog("  diff result: \(newContent.count) chars: \(String(newContent.prefix(120)))")
                     return newContent
                 }
                 // If no new content after stabilization, keep waiting
-                // (the command might not have started yet)
             }
         }
 
         // Timeout — return whatever new content we have
         let newContent = extractNewContent(before: initialSnapshot, after: lastContent, isTerminalBased: isTerminal)
+        AccessibilityReader.debugLog("  TIMEOUT after \(pollCount) polls, \(changeCount) changes, \(nilCount) nils")
+        AccessibilityReader.debugLog("  final diff: \(newContent.count) chars")
+        AccessibilityReader.debugLog("=== waitForNewOutput END ===")
         return newContent.isEmpty ? nil : newContent
     }
 
