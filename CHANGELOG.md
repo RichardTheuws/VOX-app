@@ -5,6 +5,11 @@ All notable changes to VOX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.1] - 2026-02-13
+
+### Fixed
+- **Ollama summaries now work at runtime**: The `isServerRunning` check in ResponseProcessor used a cached `@Published` property that was never updated during the normal monitoring flow, causing Ollama summarization to be silently skipped. Replaced with a live `checkServer()` call that performs an actual HTTP health check before each summarization attempt.
+
 ## [1.0.0] - 2026-02-12
 
 ### Added

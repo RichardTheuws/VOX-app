@@ -70,7 +70,7 @@ final class ResponseProcessor {
             // Long responses: try Ollama first, fallback to heuristic
             if settings.summarizationMethod == .ollama,
                let ollama = ollamaService,
-               await ollama.isServerRunning {
+               await ollama.checkServer() {
                 if let ollamaSummary = await ollama.summarize(
                     text: cleaned, command: command,
                     maxSentences: settings.maxSummaryLength,
