@@ -15,6 +15,11 @@ final class AccessibilityReader {
     /// Prevents spamming the user with System Settings on every poll.
     private var hasRequestedPermission = false
 
+    /// UserDefaults key to persist the "already prompted" state across launches.
+    /// Once VOX has shown the AX permission dialog, it won't auto-prompt again.
+    /// The user can still grant permission manually via Settings → Apps → "Grant Permission" button.
+    private static let hasPromptedAXKey = "hasPromptedAccessibilityPermission"
+
     /// Whether we've run the one-time deep diagnostic dump.
     private var hasDumpedDiagnostic = false
 
@@ -49,10 +54,13 @@ final class AccessibilityReader {
 
     func readContent(for bundleID: String) async -> String? {
         guard Self.isAccessibilityGranted() else {
-            if !hasRequestedPermission {
-                Self.debugLog("AX permission NOT granted — showing permission prompt")
+            if !hasRequestedPermission && !UserDefaults.standard.bool(forKey: Self.hasPromptedAXKey) {
+                Self.debugLog("AX permission NOT granted — showing permission prompt (first time)")
                 Self.requestAccessibilityPermission()
                 hasRequestedPermission = true
+                UserDefaults.standard.set(true, forKey: Self.hasPromptedAXKey)
+            } else {
+                Self.debugLog("AX permission NOT granted — already prompted, skipping auto-prompt")
             }
             return nil
         }

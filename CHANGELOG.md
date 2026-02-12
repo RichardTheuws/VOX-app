@@ -5,6 +5,11 @@ All notable changes to VOX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.2] - 2026-02-13
+
+### Fixed
+- **Accessibility permission no longer prompts on every launch**: The AX permission prompt was shown on every app start because the "already prompted" flag was an in-memory instance property that reset on launch. Now persisted via `UserDefaults` — VOX prompts once on first launch, then relies on the Settings UI for subsequent permission grants.
+
 ## [1.0.1] - 2026-02-13
 
 ### Fixed
