@@ -135,7 +135,8 @@ final class AccessibilityReader {
     /// 1. Collect ALL AXStaticText values from the window tree with their depths
     /// 2. Filter to chat-depth elements only (depth >= chatMinDepth)
     /// 3. Group consecutive same-depth fragments into message blocks
-    /// 4. Return the LAST block with > chatMinGroupChars characters (= latest AI response)
+    /// 4. Identify the "AI response depth" (the depth with the largest single group)
+    /// 5. Return the LAST group at that depth (= latest AI response, not user prompt)
     private func assembleChatFragments(_ axApp: AXUIElement) -> String? {
         var window: AnyObject?
         guard AXUIElementCopyAttributeValue(
@@ -194,21 +195,39 @@ final class AccessibilityReader {
         let groupSummary = groups.map { "\($0.texts.joined().count)ch@d\($0.depth)" }
         Self.debugLog("  chatAssembly: \(groups.count) groups: \(groupSummary.joined(separator: ", "))")
 
-        // Phase 4: Find the LAST group with substantial content.
-        // In a chat UI (top-to-bottom), the latest AI response is the last large text block.
+        // Phase 4: Find the AI response depth and return the latest response.
+        // AI responses (depth ~33) produce groups of 400-1000+ chars.
+        // User prompts (depth ~34) produce groups of 75-120 chars.
+        // Strategy: the depth with the largest single group is the AI response depth.
+        // Then return the LAST group at that depth (= latest AI response).
         let substantialGroups = groups.filter {
             $0.texts.joined().count > Self.chatMinGroupChars
         }
 
-        guard let lastGroup = substantialGroups.last else {
+        guard !substantialGroups.isEmpty else {
             Self.debugLog("  chatAssembly: no group > \(Self.chatMinGroupChars) chars")
             return nil
         }
 
-        let assembled = lastGroup.texts.joined()
+        // Find depth with the largest single group (= AI response depth)
+        let largestGroup = substantialGroups.max(by: {
+            $0.texts.joined().count < $1.texts.joined().count
+        })!
+        let aiResponseDepth = largestGroup.depth
+
+        Self.debugLog("  chatAssembly: AI response depth = \(aiResponseDepth) (largest group = \(largestGroup.texts.joined().count) chars)")
+
+        // Return the LAST group at the AI response depth (= latest AI response)
+        let aiGroups = substantialGroups.filter { $0.depth == aiResponseDepth }
+        guard let lastAIGroup = aiGroups.last else {
+            Self.debugLog("  chatAssembly: no groups at depth \(aiResponseDepth)")
+            return nil
+        }
+
+        let assembled = lastAIGroup.texts.joined()
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        Self.debugLog("  chatAssembly: returning \(assembled.count) chars from depth=\(lastGroup.depth) (\(lastGroup.texts.count) fragments)")
+        Self.debugLog("  chatAssembly: returning \(assembled.count) chars from depth=\(lastAIGroup.depth) (\(lastAIGroup.texts.count) fragments)")
         Self.debugLog("  chatAssembly: preview: \(String(assembled.prefix(200)))")
 
         return assembled.isEmpty ? nil : assembled

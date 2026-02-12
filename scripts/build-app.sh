@@ -63,6 +63,24 @@ cp "${PROJECT_DIR}/Assets/AppIcon.icns" "${APP_BUNDLE}/Contents/Resources/AppIco
 # Step 7: Create PkgInfo
 echo -n "APPL????" > "${APP_BUNDLE}/Contents/PkgInfo"
 
+# Step 8: Code sign (for persistent AX permissions across rebuilds)
+# Without code signing, macOS TCC revokes Accessibility permission on every rebuild
+# because the binary's CDHash changes.
+SIGNING_IDENTITY="VOX Developer"
+if security find-identity -v -p codesigning 2>/dev/null | grep -q "$SIGNING_IDENTITY"; then
+    echo "    Code signing with '${SIGNING_IDENTITY}'..."
+    # Strip ALL extended attributes (resource forks, Finder info, quarantine) that break codesign
+    xattr -cr "$APP_BUNDLE" 2>/dev/null || true
+    find "$APP_BUNDLE" -exec xattr -c {} \; 2>/dev/null || true
+    codesign --force --deep --sign "$SIGNING_IDENTITY" \
+        --identifier "com.vox.app" \
+        "$APP_BUNDLE"
+    echo "    Code signed ✓"
+else
+    echo "    ⚠️  No '${SIGNING_IDENTITY}' certificate found — AX permissions will reset on rebuild."
+    echo "    Run: ./scripts/create-signing-cert.sh to create one."
+fi
+
 echo "==> VOX.app created at: ${APP_BUNDLE}"
 echo "    Version: ${VERSION}"
 echo "    Size: $(du -sh "$APP_BUNDLE" | cut -f1)"

@@ -5,6 +5,20 @@ All notable changes to VOX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.10.5] - 2026-02-12
+
+### Fixed
+- **Critical: VOX now reads AI response instead of user prompt**. The v0.10.4 chatAssembly algorithm returned `substantialGroups.last` — the last large text block in tree order. In Cursor's AX tree, the user's latest prompt (depth=34, ~105 chars) appears AFTER the AI response (depth=33, ~428 chars), so VOX was reading back the user's own prompt. Fixed by identifying the "AI response depth" (the depth with the largest single group — AI responses are 400-1000+ chars, user prompts are 75-120 chars) and returning the last group at that depth.
+
+### Added
+- **Self-signed code signing for persistent AX permissions**: New `scripts/create-signing-cert.sh` creates a "VOX Developer" self-signed certificate for code signing. `scripts/build-app.sh` now automatically signs the binary with this certificate. This makes macOS TCC recognize VOX across rebuilds (same code signing identity = same CDHash behavior), so Accessibility permission is granted once and persists.
+- **`--identifier com.vox.app`** in codesign for stable bundle identification.
+
+### Technical
+- `AccessibilityReader.swift` — Phase 4 now finds AI response depth via `max(by:)` on group size, then filters to that depth instead of blindly taking `substantialGroups.last`
+- `scripts/build-app.sh` — Added Step 8: code signing with "VOX Developer" certificate, with graceful fallback if certificate not found
+- `scripts/create-signing-cert.sh` — New script: generates self-signed RSA 2048-bit code signing certificate, imports into login keychain, sets key partition list for codesign access
+
 ## [0.10.4] - 2026-02-12
 
 ### Fixed
