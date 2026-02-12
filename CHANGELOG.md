@@ -5,6 +5,31 @@ All notable changes to VOX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.0] - 2026-02-12
+
+### Added
+- **Adaptive voice selection**: VOX now auto-detects the language of text being spoken (Dutch, English, German) using Apple's NLLanguageRecognizer and selects a matching voice. Users only need to set a gender preference (male/female) — no more manual voice picker.
+- **VoiceGender enum**: New setting with `.female` (default) and `.male` options. Replaces the per-voice Edge TTS picker.
+- **LanguageDetector service**: New utility wrapping `NLLanguageRecognizer` constrained to NL/EN/DE. Requires minimum 10 chars for reliable detection, falls back to English.
+- **German language support**: `ResponseLanguage` enum now includes `.german` ("Deutsch") alongside Dutch and English.
+- **Localized heuristic summaries**: ALL summary strings in ResponseProcessor are now localized for NL/EN/DE — timeout messages, success/error summaries, git status, build output, Claude output, and generic summaries.
+- **`localized(en:nl:de:)` helper**: New method on ResponseProcessor for tri-lingual string selection based on `effectiveLanguageCode()`.
+- **Edge TTS adaptive voice mapping**: `adaptiveEdgeTTSVoice(for:)` maps (language × gender) to Microsoft Neural voices — NL: Colette/Maarten, EN: Jenny/Guy, DE: Amala/Conrad.
+- **macOS native adaptive voices**: `preferredVoice(for:)` now filters system voices by detected language locale + gender preference, with multi-level fallbacks (lang+gender+premium → lang+gender → lang+premium → lang-only).
+- **17 new tests**: LanguageDetectorTests (4), AdaptiveEdgeTTSVoiceTests (4), LocalizedSummaryTests (5), VoiceGenderTests (4). Total: 106 tests (was 89).
+
+### Changed
+- **Settings UI simplified**: Replaced 6-option Edge TTS voice Picker with a simple male/female gender Picker that works across all TTS engines. Added explainer text: "VOX detects the language automatically and picks a matching voice."
+- **README completely rewritten**: New sections for Supported Apps table, TTS Engines comparison, Adaptive Voice Selection, dual reading paths (AppleScript + Accessibility API), Notice Mode options, code signing setup. Updated architecture tree, roadmap (all versions through v1.0), tech stack, and test count (106).
+
+### Technical
+- `LanguageDetector.swift` — New file: NLLanguageRecognizer wrapper with 10-char minimum threshold
+- `TTSEngine.swift` — `adaptiveEdgeTTSVoice(for:)`, rewritten `preferredVoice(for:)` with language+gender filtering, fully qualified `NSSpeechSynthesizer.VoiceAttributeKey` keys to avoid enum name collision with `VoiceGender`
+- `ResponseProcessor.swift` — `localized(en:nl:de:)` helper, all summary methods localized, `effectiveLanguageCode()` handles German
+- `VoxSettings.swift` — `VoiceGender` enum, `voiceGender` property, `.german` case in `ResponseLanguage`
+- `SettingsView.swift` — Gender picker replaces voice picker, Edge TTS section simplified
+- `AdaptiveVoiceTests.swift` — 17 new tests with proper `@AppStorage` isolation (setUp/tearDown resets)
+
 ## [0.10.5] - 2026-02-12
 
 ### Fixed

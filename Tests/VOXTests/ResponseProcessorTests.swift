@@ -6,9 +6,10 @@ final class ResponseProcessorTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        // Reset sound pack settings to defaults to avoid test pollution
+        // Reset settings to defaults to avoid test pollution
         VoxSettings.shared.noticeSoundPack = .tts
         VoxSettings.shared.customSoundPackName = ""
+        VoxSettings.shared.responseLanguage = .english
         processor = ResponseProcessor()
     }
 

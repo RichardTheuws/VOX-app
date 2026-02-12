@@ -124,10 +124,11 @@ final class ResponseProcessor {
     }
 
     /// Determine the effective language code based on settings.
-    private func effectiveLanguageCode() -> String {
+    func effectiveLanguageCode() -> String {
         switch settings.responseLanguage {
         case .dutch: return "nl"
         case .english: return "en"
+        case .german: return "de"
         case .followInput:
             switch settings.inputLanguage {
             case .dutch: return "nl"
@@ -135,6 +136,15 @@ final class ResponseProcessor {
             case .english: return "en"
             case .autoDetect: return "en"
             }
+        }
+    }
+
+    /// Return localized string based on response language setting.
+    func localized(en: String, nl: String, de: String) -> String {
+        switch effectiveLanguageCode() {
+        case "nl": return nl
+        case "de": return de
+        default: return en
         }
     }
 
@@ -195,11 +205,16 @@ final class ResponseProcessor {
 
     // MARK: - Heuristic Summarization
 
-    private func summarize(_ result: ExecutionResult, command: String) -> String {
+    func summarize(_ result: ExecutionResult, command: String) -> String {
         let output = result.output
 
         if result.wasTimeout {
-            return "Command timed out after \(Int(result.duration)) seconds."
+            let secs = Int(result.duration)
+            return localized(
+                en: "Command timed out after \(secs) seconds.",
+                nl: "Commando verlopen na \(secs) seconden.",
+                de: "Befehl nach \(secs) Sekunden abgelaufen."
+            )
         }
 
         if !result.isSuccess {
@@ -213,7 +228,11 @@ final class ResponseProcessor {
         let lines = output.components(separatedBy: .newlines).filter { !$0.isEmpty }
 
         if lines.isEmpty {
-            return "Done. No output."
+            return localized(
+                en: "Done. No output.",
+                nl: "Klaar. Geen uitvoer.",
+                de: "Fertig. Keine Ausgabe."
+            )
         }
 
         // Git status
@@ -224,7 +243,11 @@ final class ResponseProcessor {
         // Git log
         if command.hasPrefix("git log") {
             let count = lines.count
-            return "Showing \(count) commit\(count == 1 ? "" : "s")."
+            return localized(
+                en: "Showing \(count) commit\(count == 1 ? "" : "s").",
+                nl: "\(count) commit\(count == 1 ? "" : "s") weergegeven.",
+                de: "\(count) Commit\(count == 1 ? "" : "s") angezeigt."
+            )
         }
 
         // npm/build commands
@@ -232,17 +255,31 @@ final class ResponseProcessor {
             if output.lowercased().contains("error") {
                 let errorLines = lines.filter { $0.lowercased().contains("error") }
                 if let firstError = errorLines.first {
-                    return "Build error: \(truncate(firstError, maxLength: 80))"
+                    let detail = truncate(firstError, maxLength: 80)
+                    return localized(
+                        en: "Build error: \(detail)",
+                        nl: "Build fout: \(detail)",
+                        de: "Build-Fehler: \(detail)"
+                    )
                 }
             }
             if output.lowercased().contains("success") || output.lowercased().contains("compiled") {
-                return "Build completed successfully."
+                return localized(
+                    en: "Build completed successfully.",
+                    nl: "Build succesvol afgerond.",
+                    de: "Build erfolgreich abgeschlossen."
+                )
             }
         }
 
         // ls / file listing
         if command.hasPrefix("ls") {
-            return "\(lines.count) items listed."
+            let count = lines.count
+            return localized(
+                en: "\(count) items listed.",
+                nl: "\(count) items weergegeven.",
+                de: "\(count) Einträge aufgelistet."
+            )
         }
 
         // Claude Code output
@@ -255,11 +292,18 @@ final class ResponseProcessor {
         if lines.count == 1 {
             return firstLine
         }
-        return "\(firstLine) (\(lines.count) lines total)"
+        let count = lines.count
+        return localized(
+            en: "\(firstLine) (\(count) lines total)",
+            nl: "\(firstLine) (\(count) regels totaal)",
+            de: "\(firstLine) (\(count) Zeilen gesamt)"
+        )
     }
 
     private func summarizeError(_ output: String, exitCode: Int32) -> String {
         let lines = output.components(separatedBy: .newlines).filter { !$0.isEmpty }
+
+        let unknownError = localized(en: "Unknown error", nl: "Onbekende fout", de: "Unbekannter Fehler")
 
         // Find the most informative error line
         let errorLine = lines.first(where: { line in
@@ -267,9 +311,14 @@ final class ResponseProcessor {
             return lower.contains("error") || lower.contains("fatal") ||
                    lower.contains("failed") || lower.contains("not found") ||
                    lower.contains("permission denied")
-        }) ?? lines.last ?? "Unknown error"
+        }) ?? lines.last ?? unknownError
 
-        return "Error (exit \(exitCode)): \(truncate(errorLine, maxLength: 100))"
+        let detail = truncate(errorLine, maxLength: 100)
+        return localized(
+            en: "Error (exit \(exitCode)): \(detail)",
+            nl: "Fout (exit \(exitCode)): \(detail)",
+            de: "Fehler (exit \(exitCode)): \(detail)"
+        )
     }
 
     private func summarizeGitStatus(_ lines: [String]) -> String {
@@ -287,14 +336,37 @@ final class ResponseProcessor {
 
         if modified == 0 && untracked == 0 && staged == 0 {
             if lines.contains(where: { $0.contains("nothing to commit") }) {
-                return "On \(branch), working tree clean."
+                return localized(
+                    en: "On \(branch), working tree clean.",
+                    nl: "Op \(branch), werkboom schoon.",
+                    de: "Auf \(branch), Arbeitsbaum sauber."
+                )
             }
         }
 
-        var parts: [String] = ["On \(branch)"]
-        if modified > 0 { parts.append("\(modified) modified") }
-        if staged > 0 { parts.append("\(staged) staged") }
-        if untracked > 0 { parts.append("untracked files") }
+        let onBranch = localized(en: "On \(branch)", nl: "Op \(branch)", de: "Auf \(branch)")
+        var parts: [String] = [onBranch]
+        if modified > 0 {
+            parts.append(localized(
+                en: "\(modified) modified",
+                nl: "\(modified) gewijzigd",
+                de: "\(modified) geändert"
+            ))
+        }
+        if staged > 0 {
+            parts.append(localized(
+                en: "\(staged) staged",
+                nl: "\(staged) staged",
+                de: "\(staged) bereitgestellt"
+            ))
+        }
+        if untracked > 0 {
+            parts.append(localized(
+                en: "untracked files",
+                nl: "niet-getrackte bestanden",
+                de: "nicht verfolgte Dateien"
+            ))
+        }
         return parts.joined(separator: ", ") + "."
     }
 
@@ -303,24 +375,34 @@ final class ResponseProcessor {
         let filePatterns = lines.filter { $0.contains("Created") || $0.contains("Modified") || $0.contains("Updated") }
         let testPatterns = lines.filter { $0.lowercased().contains("test") && $0.lowercased().contains("pass") }
 
+        let done = localized(en: "Done.", nl: "Klaar.", de: "Fertig.")
         var parts: [String] = []
 
         if !filePatterns.isEmpty {
-            parts.append("\(filePatterns.count) file\(filePatterns.count == 1 ? "" : "s") changed")
+            let count = filePatterns.count
+            parts.append(localized(
+                en: "\(count) file\(count == 1 ? "" : "s") changed",
+                nl: "\(count) bestand\(count == 1 ? "" : "en") gewijzigd",
+                de: "\(count) Datei\(count == 1 ? "" : "en") geändert"
+            ))
         }
         if !testPatterns.isEmpty {
-            parts.append("tests passing")
+            parts.append(localized(
+                en: "tests passing",
+                nl: "tests geslaagd",
+                de: "Tests bestanden"
+            ))
         }
 
         if parts.isEmpty {
             // Fallback: use last non-empty line
             if let lastLine = lines.last {
-                return "Done. \(truncate(lastLine, maxLength: 80))"
+                return "\(done) \(truncate(lastLine, maxLength: 80))"
             }
-            return "Done."
+            return done
         }
 
-        return "Done. \(parts.joined(separator: ", "))."
+        return "\(done) \(parts.joined(separator: ", "))."
     }
 
     // MARK: - Helpers

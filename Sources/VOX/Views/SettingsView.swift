@@ -236,6 +236,17 @@ struct TTSSettingsTab: View {
                 Toggle("Interrupt on new command", isOn: $settings.interruptOnNewCommand)
             }
 
+            Section("Voice") {
+                Picker("Voice type", selection: $settings.voiceGender) {
+                    ForEach(VoiceGender.allCases, id: \.self) { gender in
+                        Text(gender.rawValue).tag(gender)
+                    }
+                }
+                Text("VOX detects the language automatically and picks a matching voice.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
             // Engine-specific configuration
             if settings.ttsEngine == .elevenLabs {
                 Section("ElevenLabs") {
@@ -249,15 +260,6 @@ struct TTSSettingsTab: View {
 
             if settings.ttsEngine == .edgeTTS {
                 Section("Edge TTS") {
-                    Picker("Voice", selection: $settings.edgeTTSVoice) {
-                        Text("Colette (NL vrouw)").tag("nl-NL-ColetteNeural")
-                        Text("Maarten (NL man)").tag("nl-NL-MaartenNeural")
-                        Text("Jenny (EN vrouw)").tag("en-US-JennyNeural")
-                        Text("Guy (EN man)").tag("en-US-GuyNeural")
-                        Text("Amala (DE vrouw)").tag("de-DE-AmalaNeural")
-                        Text("Conrad (DE man)").tag("de-DE-ConradNeural")
-                    }
-
                     if !edgeTTSInstalled {
                         HStack {
                             Image(systemName: "exclamationmark.triangle")

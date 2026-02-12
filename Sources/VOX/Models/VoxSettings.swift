@@ -45,6 +45,10 @@ final class VoxSettings: ObservableObject {
 
     @AppStorage("edgeTTSVoice") var edgeTTSVoice: String = "nl-NL-ColetteNeural"
 
+    // MARK: - Voice
+
+    @AppStorage("voiceGender") var voiceGender: VoiceGender = .female
+
     // MARK: - Advanced
 
     @AppStorage("summarizationMethod") var summarizationMethod: SummarizationMethod = .heuristic
@@ -98,6 +102,12 @@ enum ResponseLanguage: String, CaseIterable, Codable {
     case followInput = "Follow input"
     case english = "English"
     case dutch = "Nederlands"
+    case german = "Deutsch"
+}
+
+enum VoiceGender: String, CaseIterable, Codable {
+    case female = "Female"
+    case male = "Male"
 }
 
 enum TTSEngineType: String, CaseIterable, Codable {
