@@ -2,7 +2,7 @@
 
 > Talk to your terminal. Hear what matters.
 
-VOX is an open-source macOS menu bar companion for [Hex](https://hex.kitlangton.com/). When you dictate a command via Hex — whether in Terminal, Cursor, VS Code, or Windsurf — VOX monitors the output and reads it back to you with configurable verbosity. Adaptive voices detect the language of the response and pick a matching voice automatically. Built with Swift 6 and SwiftUI, VOX runs entirely on-device with zero telemetry.
+VOX is an open-source macOS menu bar companion for [Hex](https://hex.kitlangton.com/). When you dictate a command via Hex — whether in Terminal, Cursor, VS Code, Windsurf, or Claude Desktop — VOX monitors the output and reads it back to you with configurable verbosity. Adaptive voices detect the language of the response and pick a matching voice automatically. Built with Swift 6 and SwiftUI, VOX runs entirely on-device with zero telemetry.
 
 <p align="center">
   <img src="Assets/icon_1024.png" width="128" alt="VOX App Icon" />
@@ -10,7 +10,7 @@ VOX is an open-source macOS menu bar companion for [Hex](https://hex.kitlangton.
 
 ## Why VOX?
 
-Developers using voice-driven tools like [Hex](https://hex.kitlangton.com/) can dictate commands — but they still have to read the output. With AI assistants producing lengthy responses (Claude Code, Cursor, Windsurf), the bottleneck has shifted from typing to reading.
+Developers using voice-driven tools like [Hex](https://hex.kitlangton.com/) can dictate commands — but they still have to read the output. With AI assistants producing lengthy responses (Claude Code, Claude Desktop, Cursor, Windsurf), the bottleneck has shifted from typing to reading.
 
 VOX closes the loop: **dictate your command with Hex, hear the response from VOX**. No more reading 500-word outputs when a 2-sentence summary tells you everything you need.
 
@@ -20,6 +20,7 @@ VOX closes the loop: **dictate your command with Hex, hear the response from VOX
 |-----|---------------|--------|
 | **Terminal.app** | AppleScript | Stable |
 | **iTerm2** | AppleScript | Stable |
+| **Claude Desktop** | Accessibility API | Stable |
 | **Cursor** | Accessibility API | Stable |
 | **VS Code** | Accessibility API | Stable |
 | **Windsurf** | Accessibility API | Stable |
@@ -30,25 +31,26 @@ VOX has two reading paths depending on the target app:
 
 ```
 Terminal / iTerm2:  Hex dictates → Command runs → VOX reads output via AppleScript
-Cursor / VS Code / Windsurf:  Hex dictates → AI responds → VOX reads chat via Accessibility API
+Claude Desktop / Cursor / VS Code / Windsurf:  Hex dictates → AI responds → VOX reads chat via Accessibility API
 ```
 
 1. **Hex** listens to your voice and types the transcription into the active app
 2. **The app** processes the command or AI prompt
 3. **VOX** detects new output (AppleScript for terminals, Accessibility API for editors), processes it according to your verbosity level, and speaks the result
 
-For Chromium-based editors (Cursor, VS Code, Windsurf), VOX uses intelligent chat fragment assembly — collecting multiple AX text elements and reassembling them into a coherent response before reading it aloud.
+For Chromium/Electron-based editors (Claude Desktop, Cursor, VS Code, Windsurf), VOX uses intelligent chat fragment assembly — collecting multiple AX text elements and reassembling them into a coherent response before reading it aloud.
 
 ## Features
 
 ### Core
 - **Terminal monitoring** — Detects new output in Terminal.app and iTerm2 via AppleScript
-- **Editor monitoring** — Reads AI chat responses in Cursor, VS Code, and Windsurf via Accessibility API
+- **Editor monitoring** — Reads AI chat responses in Claude Desktop, Cursor, VS Code, and Windsurf via Accessibility API
 - **Smart long-running task detection** — Two-phase stabilization with adaptive polling handles 30-40+ minute Claude Code sessions without premature summarization
 - **Terminal prompt detection** — Instantly detects when a command finishes by recognizing shell prompts (bash, zsh, starship)
 - **Chat fragment assembly** — Reassembles fragmented Chromium AX text elements into coherent responses
 - **Hex integration** — Watches Hex's `transcription_history.json` for new dictations with source app context
 - **Per-app verbosity** — Configure different verbosity levels per target app
+- **Per-app sound packs** — Choose a different notice sound pack per app (visible when verbosity is set to Notice)
 
 ### TTS & Voice
 - **3 TTS engines** — macOS native, Edge TTS (free Microsoft Neural voices), ElevenLabs (premium multilingual)
@@ -78,7 +80,7 @@ For Chromium-based editors (Cursor, VS Code, Windsurf), VOX uses intelligent cha
 - macOS 14.0 (Sonoma) or later
 - [Hex](https://hex.kitlangton.com/) for speech-to-text
 - Xcode 16+ / Swift 6 (for building from source)
-- **Accessibility permission** required for Cursor, VS Code, and Windsurf (the app will prompt you)
+- **Accessibility permission** required for Claude Desktop, Cursor, VS Code, and Windsurf (the app will prompt you)
 
 Terminal and iTerm2 reading works without any special permissions.
 
@@ -142,7 +144,7 @@ swift build -c release
 
 ```bash
 swift test
-# 118 tests, 0 failures
+# 128 tests, 0 failures
 ```
 
 ## Verbosity Levels
@@ -213,7 +215,7 @@ Instead of manually choosing a voice, you set a **gender preference** (male/fema
 VOX (Menu Bar App)
 ├── Models/
 │   ├── VerbosityLevel.swift       — 4-level verbosity enum with cycling
-│   ├── TargetApp.swift            — Terminal, iTerm2, Cursor, VS Code, Windsurf
+│   ├── TargetApp.swift            — Terminal, iTerm2, Claude Desktop, Cursor, VS Code, Windsurf
 │   ├── VoxCommand.swift           — Command history model with Codable
 │   ├── VoxSettings.swift          — @AppStorage settings + VoiceGender + ResponseLanguage
 │   ├── VOXVersion.swift           — Centralized version constant
@@ -252,7 +254,7 @@ VOX (Menu Bar App)
 VOX offers a 4-tab settings window:
 
 - **General** — Launch at login, theme, response language (English/Dutch/German), input language
-- **Apps** — Per-app verbosity levels, auto-detect target app
+- **Apps** — Per-app verbosity levels, per-app sound packs (when Notice), auto-detect target app
 - **TTS** — Engine selection, voice gender, speed, volume, notice sound packs, interrupt behavior
 - **Advanced** — Summarization method (heuristic/Ollama), Ollama model, monitor timeout, logging
 
@@ -282,7 +284,8 @@ No audio data ever leaves your Mac. Hex supports multiple model sizes with diffe
 | v0.9 | Edge TTS + ElevenLabs + Accessibility API for editors | Done |
 | v0.10 | Code signing + chat fragment assembly + full response reading | Done |
 | v1.0 | Adaptive voices + localized summaries + 106 tests | Done |
-| **v1.1** | **Smart long-running task detection + adaptive polling + 118 tests** | **Current** |
+| v1.1 | Smart long-running task detection + adaptive polling + 118 tests | Done |
+| **v1.2** | **Claude Desktop support + per-app sound packs + 128 tests** | **Current** |
 
 ## Tech Stack
 
@@ -296,7 +299,7 @@ No audio data ever leaves your Mac. Hex supports multiple model sizes with diffe
 | Language Detection | Apple NLLanguageRecognizer (NaturalLanguage framework) |
 | AI Summarization | Ollama (local, optional) |
 | Platform | macOS 14+ (Apple Silicon optimized) |
-| Testing | XCTest — 118 unit tests |
+| Testing | XCTest — 128 unit tests |
 | Build | Swift Package Manager |
 
 ## Privacy & Security
@@ -305,7 +308,7 @@ No audio data ever leaves your Mac. Hex supports multiple model sizes with diffe
 - **No telemetry** — Zero analytics, zero tracking, zero data collection
 - **No audio storage** — Voice audio is never saved; only transcriptions are logged (optionally)
 - **No shell access** — VOX reads output, never executes commands
-- **Accessibility permission** — Required only for Cursor/VS Code/Windsurf. VOX reads the visible AI chat panel text. It does not access files, keystrokes, or other app data
+- **Accessibility permission** — Required only for Claude Desktop/Cursor/VS Code/Windsurf. VOX reads the visible AI chat panel text. It does not access files, keystrokes, or other app data
 - **Open source** — Full source code is public and auditable
 
 ## Contributing
@@ -318,7 +321,7 @@ Contributions are welcome! Please open an issue or pull request.
 git clone https://github.com/RichardTheuws/VOX-app.git
 cd VOX-app
 swift build
-swift test  # 118 tests should pass
+swift test  # 128 tests should pass
 ```
 
 ## License
@@ -330,4 +333,4 @@ MIT License — see [LICENSE](LICENSE)
 Part of the [tools.theuws.com](https://tools.theuws.com) ecosystem.
 
 ---
-Version 1.1.0
+Version 1.2.0

@@ -80,6 +80,34 @@ final class VoxSettings: ObservableObject {
         objectWillChange.send()
     }
 
+    // MARK: - Per-app notice sound pack
+
+    func soundPack(for app: TargetApp) -> NoticeSoundPack {
+        let key = "soundPack_\(app.rawValue)"
+        if let raw = UserDefaults.standard.string(forKey: key),
+           let pack = NoticeSoundPack(rawValue: raw) {
+            return pack
+        }
+        return noticeSoundPack  // Fallback to global
+    }
+
+    func setSoundPack(_ pack: NoticeSoundPack, for app: TargetApp) {
+        let key = "soundPack_\(app.rawValue)"
+        UserDefaults.standard.set(pack.rawValue, forKey: key)
+        objectWillChange.send()
+    }
+
+    func customSoundPackName(for app: TargetApp) -> String {
+        let key = "customSoundPack_\(app.rawValue)"
+        return UserDefaults.standard.string(forKey: key) ?? customSoundPackName  // Fallback to global
+    }
+
+    func setCustomSoundPackName(_ name: String, for app: TargetApp) {
+        let key = "customSoundPack_\(app.rawValue)"
+        UserDefaults.standard.set(name, forKey: key)
+        objectWillChange.send()
+    }
+
     private init() {}
 }
 

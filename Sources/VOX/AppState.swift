@@ -82,13 +82,14 @@ final class AppState: ObservableObject {
     // MARK: - Transcription Handling
 
     /// Bundle IDs of apps whose output VOX should monitor (not execute).
-    /// Terminal.app/iTerm2 use AppleScript; Cursor/VS Code/Windsurf use Accessibility API.
+    /// Terminal.app/iTerm2 use AppleScript; Cursor/VS Code/Windsurf/Claude Desktop use Accessibility API.
     private static let monitorableBundleIDs: Set<String> = [
         "com.apple.Terminal",                  // Terminal.app (incl. Claude Code)
         "com.googlecode.iterm2",               // iTerm2
         "com.microsoft.VSCode",                // VS Code
         "com.todesktop.230313mzl4w4u92",       // Cursor
         "com.codeium.windsurf",                // Windsurf
+        "com.anthropic.claudefordesktop",      // Claude Desktop (Chat + Code)
     ]
 
     private func handleTranscription(_ entry: HexHistoryEntry) {
@@ -179,7 +180,7 @@ final class AppState: ObservableObject {
             )
 
             let verbosity = settings.verbosity(for: target)
-            let processed = await responseProcessor.process(result, verbosity: verbosity, command: transcription)
+            let processed = await responseProcessor.process(result, verbosity: verbosity, command: transcription, target: target)
 
             command.summary = processed.spokenText
             history.update(command)

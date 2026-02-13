@@ -97,7 +97,7 @@ struct AppsSettingsTab: View {
                 }
 
                 if !isAccessibilityGranted {
-                    Text("Required to monitor Cursor, VS Code and Windsurf. Not needed for Terminal or iTerm2.")
+                    Text("Required to monitor Cursor, VS Code, Windsurf and Claude Desktop. Not needed for Terminal or iTerm2.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -142,6 +142,22 @@ struct AppsSettingsTab: View {
                             Text("Requires Accessibility permission")
                                 .font(.caption2)
                                 .foregroundColor(.orange)
+                        }
+                        .padding(.leading, 16)
+                    }
+
+                    // Sound pack picker — only visible when verbosity is Notice
+                    if settings.verbosity(for: app) == .notice {
+                        HStack {
+                            Image(systemName: "speaker.wave.1")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Picker("Sound Pack", selection: soundPackBinding(for: app)) {
+                                ForEach(NoticeSoundPack.allCases) { pack in
+                                    Text(pack.label).tag(pack)
+                                }
+                            }
+                            .frame(width: 180)
                         }
                         .padding(.leading, 16)
                     }
@@ -193,6 +209,13 @@ struct AppsSettingsTab: View {
         Binding(
             get: { settings.verbosity(for: app) },
             set: { settings.setVerbosity($0, for: app) }
+        )
+    }
+
+    private func soundPackBinding(for app: TargetApp) -> Binding<NoticeSoundPack> {
+        Binding(
+            get: { settings.soundPack(for: app) },
+            set: { settings.setSoundPack($0, for: app) }
         )
     }
 }

@@ -5,6 +5,7 @@ enum TargetApp: String, CaseIterable, Codable, Identifiable {
     case terminal = "Terminal"
     case iterm2 = "iTerm2"
     case claudeCode = "Claude Code"
+    case claudeDesktop = "Claude Desktop"
     case vsCode = "VS Code"
     case cursor = "Cursor"
     case windsurf = "Windsurf"
@@ -16,6 +17,7 @@ enum TargetApp: String, CaseIterable, Codable, Identifiable {
         case .terminal: "com.apple.Terminal"
         case .iterm2: "com.googlecode.iterm2"
         case .claudeCode: "com.apple.Terminal" // Claude Code runs in terminal
+        case .claudeDesktop: "com.anthropic.claudefordesktop"
         case .vsCode: "com.microsoft.VSCode"
         case .cursor: "com.todesktop.230313mzl4w4u92"
         case .windsurf: "com.codeium.windsurf"
@@ -27,7 +29,7 @@ enum TargetApp: String, CaseIterable, Codable, Identifiable {
         case .vsCode: "code"
         case .cursor: "cursor"
         case .windsurf: "windsurf"
-        default: nil
+        case .terminal, .iterm2, .claudeCode, .claudeDesktop: nil
         }
     }
 
@@ -37,6 +39,7 @@ enum TargetApp: String, CaseIterable, Codable, Identifiable {
         case .terminal: ["terminal", "shell", "bash", "zsh"]
         case .iterm2: ["iterm"]
         case .claudeCode: ["claude", "claude code"]
+        case .claudeDesktop: ["claude desktop", "desktop"]
         case .vsCode: ["code", "vs code", "vscode"]
         case .cursor: ["cursor"]
         case .windsurf: ["windsurf", "surf"]
@@ -46,14 +49,14 @@ enum TargetApp: String, CaseIterable, Codable, Identifiable {
     var isTerminalBased: Bool {
         switch self {
         case .terminal, .iterm2, .claudeCode: true
-        case .vsCode, .cursor, .windsurf: false
+        case .claudeDesktop, .vsCode, .cursor, .windsurf: false
         }
     }
 
     /// MoSCoW tier for this app.
     var tier: MoSCoWTier {
         switch self {
-        case .terminal, .iterm2, .claudeCode: .must
+        case .terminal, .iterm2, .claudeCode, .claudeDesktop: .must
         case .vsCode, .cursor, .windsurf: .should
         }
     }

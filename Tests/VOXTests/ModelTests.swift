@@ -44,7 +44,7 @@ final class VerbosityLevelTests: XCTestCase {
 final class TargetAppTests: XCTestCase {
 
     func testAllCases() {
-        XCTAssertEqual(TargetApp.allCases.count, 6)
+        XCTAssertEqual(TargetApp.allCases.count, 7)
     }
 
     func testBundleIdentifiers() {
@@ -66,6 +66,7 @@ final class TargetAppTests: XCTestCase {
     func testMoSCoWTiers() {
         XCTAssertEqual(TargetApp.terminal.tier, .must)
         XCTAssertEqual(TargetApp.claudeCode.tier, .must)
+        XCTAssertEqual(TargetApp.claudeDesktop.tier, .must)
         XCTAssertEqual(TargetApp.vsCode.tier, .should)
         XCTAssertEqual(TargetApp.cursor.tier, .should)
     }
@@ -75,6 +76,28 @@ final class TargetAppTests: XCTestCase {
         let data = try JSONEncoder().encode(original)
         let decoded = try JSONDecoder().decode(TargetApp.self, from: data)
         XCTAssertEqual(decoded, original)
+    }
+
+    // MARK: - Claude Desktop
+
+    func testClaudeDesktopBundleID() {
+        XCTAssertEqual(TargetApp.claudeDesktop.bundleIdentifier, "com.anthropic.claudefordesktop")
+    }
+
+    func testClaudeDesktopIsNotTerminalBased() {
+        XCTAssertFalse(TargetApp.claudeDesktop.isTerminalBased)
+    }
+
+    func testClaudeDesktopVoicePrefixes() {
+        XCTAssertTrue(TargetApp.claudeDesktop.voicePrefixes.contains("claude desktop"))
+        XCTAssertTrue(TargetApp.claudeDesktop.voicePrefixes.contains("desktop"))
+    }
+
+    func testAllAppsHaveUniqueBundleIDs() {
+        // Claude Code shares Terminal.app bundle ID → exclude from uniqueness check
+        let nonTerminalApps = TargetApp.allCases.filter { $0 != .claudeCode }
+        let bundleIDs = nonTerminalApps.map { $0.bundleIdentifier }
+        XCTAssertEqual(Set(bundleIDs).count, bundleIDs.count, "Duplicate bundle IDs found")
     }
 }
 

@@ -13,7 +13,8 @@ final class ResponseProcessor {
     }
 
     /// Process command output according to verbosity level.
-    func process(_ result: ExecutionResult, verbosity: VerbosityLevel, command: String) async -> ProcessedResponse {
+    /// The `target` parameter enables per-app sound pack selection in notice mode.
+    func process(_ result: ExecutionResult, verbosity: VerbosityLevel, command: String, target: TargetApp) async -> ProcessedResponse {
         switch verbosity {
         case .silent:
             return ProcessedResponse(
@@ -24,14 +25,16 @@ final class ResponseProcessor {
         case .notice:
             let status: CommandStatus = result.isSuccess ? .success : .error
 
-            // Check for custom sound pack first
-            if !settings.customSoundPackName.isEmpty,
-               let customPack = soundPackManager?.selectedPack(named: settings.customSoundPackName),
+            // Per-app custom sound pack first, fallback to global
+            let appCustomPackName = settings.customSoundPackName(for: target)
+            if !appCustomPackName.isEmpty,
+               let customPack = soundPackManager?.selectedPack(named: appCustomPackName),
                let soundURL = customPack.randomSound(isSuccess: result.isSuccess) {
                 return ProcessedResponse(spokenText: nil, customSoundURL: soundURL, status: status)
             }
 
-            let pack = settings.noticeSoundPack
+            // Per-app built-in sound pack, fallback to global
+            let pack = settings.soundPack(for: target)
             switch pack {
             case .tts:
                 let notice = localizedNotice(isSuccess: result.isSuccess)

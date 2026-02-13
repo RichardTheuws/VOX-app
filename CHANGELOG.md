@@ -5,6 +5,27 @@ All notable changes to VOX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-02-13
+
+### Added
+- **Claude Desktop support**: VOX now monitors Claude Desktop (`Claude.app`) — both Chat and Code modes. Claude Desktop is Electron-based (like Cursor/VS Code/Windsurf), so it uses the same Accessibility API with chat fragment assembly. Bundle ID: `com.anthropic.claudefordesktop`.
+- **Per-app sound pack selection**: When an app's verbosity is set to "Notice", an additional sound pack picker appears below the app row in Settings → Apps. Each app can now have its own sound pack (WarCraft, Mario, Zelda, C&C, System Sounds, TTS, or Custom) — no more one-size-fits-all. Falls back to the global sound pack when no per-app setting is configured.
+- **10 new tests**: Claude Desktop model tests (4 — bundle ID, isTerminalBased, voicePrefixes, unique bundle IDs), per-app sound pack tests (6 — default fallback, per-app set/get, custom pack fallback/set, notice mode routing, Claude Desktop with Zelda pack). Total: 128 tests (was 118).
+
+### Changed
+- **ResponseProcessor.process() now accepts `target` parameter**: Per-app sound pack routing requires knowing which app triggered the notice. The `target: TargetApp` parameter is passed from AppState's monitoring flow.
+- **TargetApp enum expanded to 7 cases**: Added `.claudeDesktop` alongside terminal, iterm2, claudeCode, vsCode, cursor, windsurf.
+- **Accessibility permission hint updated**: Settings → Apps now mentions Claude Desktop alongside Cursor, VS Code, and Windsurf in the AX permission requirement text.
+
+### Technical
+- `TargetApp.swift` — Added `.claudeDesktop` case with bundleIdentifier `"com.anthropic.claudefordesktop"`, voicePrefixes `["claude desktop", "desktop"]`, `isTerminalBased: false`, tier `.must`
+- `AppState.swift` — Added `"com.anthropic.claudefordesktop"` to `monitorableBundleIDs`, passes `target` to `responseProcessor.process()`
+- `VoxSettings.swift` — Added `soundPack(for:)`, `setSoundPack(_:for:)`, `customSoundPackName(for:)`, `setCustomSoundPackName(_:for:)` with UserDefaults keys `soundPack_<app>` and `customSoundPack_<app>`, falling back to global settings
+- `ResponseProcessor.swift` — `process()` signature gains `target: TargetApp`, notice mode uses `settings.soundPack(for: target)` and `settings.customSoundPackName(for: target)`
+- `SettingsView.swift` — Conditional `NoticeSoundPack` Picker in Apps tab (visible when app verbosity == `.notice`), `soundPackBinding(for:)` helper, updated AX hint text
+- `ModelTests.swift` — 4 new Claude Desktop tests + updated `testAllCases` count to 7
+- `ResponseProcessorTests.swift` — All 27 existing `process()` calls updated with `target: .terminal`, 6 new per-app sound pack tests
+
 ## [1.1.0] - 2026-02-13
 
 ### Added
