@@ -51,6 +51,7 @@ For Chromium/Electron-based editors (Claude Desktop, Cursor, VS Code, Windsurf),
 - **Hex integration** — Watches Hex's `transcription_history.json` for new dictations with source app context
 - **Per-app verbosity** — Configure different verbosity levels per target app
 - **Per-app sound packs** — Choose a different notice sound pack per app (visible when verbosity is set to Notice)
+- **Auto-monitor mode** — Optionally monitor app output for keyboard interactions too, not just Hex voice commands
 
 ### TTS & Voice
 - **3 TTS engines** — macOS native, Edge TTS (free Microsoft Neural voices), ElevenLabs (premium multilingual)
@@ -144,7 +145,7 @@ swift build -c release
 
 ```bash
 swift test
-# 128 tests, 0 failures
+# 136 tests, 0 failures
 ```
 
 ## Verbosity Levels
@@ -229,6 +230,7 @@ VOX (Menu Bar App)
 │   ├── LanguageDetector.swift     — NLLanguageRecognizer wrapper for text language detection
 │   ├── OllamaService.swift        — Local Ollama API for AI summarization
 │   ├── SoundPackStore.swift       — MyInstants API for downloadable sound packs
+│   ├── AppWatcher.swift           — Auto-monitor frontmost app for keyboard input
 │   └── CommandHistory.swift       — Persistent command log (JSON)
 ├── Views/
 │   ├── MenuBarView.swift          — Menu bar dropdown with status + actions
@@ -253,7 +255,7 @@ VOX (Menu Bar App)
 
 VOX offers a 4-tab settings window:
 
-- **General** — Launch at login, theme, response language (English/Dutch/German), input language
+- **General** — Launch at login, theme, response language (English/Dutch/German), input language, keyboard monitoring toggle
 - **Apps** — Per-app verbosity levels, per-app sound packs (when Notice), auto-detect target app
 - **TTS** — Engine selection, voice gender, speed, volume, notice sound packs, interrupt behavior
 - **Advanced** — Summarization method (heuristic/Ollama), Ollama model, monitor timeout, logging
@@ -285,7 +287,8 @@ No audio data ever leaves your Mac. Hex supports multiple model sizes with diffe
 | v0.10 | Code signing + chat fragment assembly + full response reading | Done |
 | v1.0 | Adaptive voices + localized summaries + 106 tests | Done |
 | v1.1 | Smart long-running task detection + adaptive polling + 118 tests | Done |
-| **v1.2** | **Claude Desktop support + per-app sound packs + 128 tests** | **Current** |
+| v1.2 | Claude Desktop support + per-app sound packs + 128 tests | Done |
+| **v1.3** | **Unified sound pack picker + auto-monitor mode + 136 tests** | **Current** |
 
 ## Tech Stack
 
@@ -299,7 +302,7 @@ No audio data ever leaves your Mac. Hex supports multiple model sizes with diffe
 | Language Detection | Apple NLLanguageRecognizer (NaturalLanguage framework) |
 | AI Summarization | Ollama (local, optional) |
 | Platform | macOS 14+ (Apple Silicon optimized) |
-| Testing | XCTest — 128 unit tests |
+| Testing | XCTest — 136 unit tests |
 | Build | Swift Package Manager |
 
 ## Privacy & Security
@@ -321,7 +324,7 @@ Contributions are welcome! Please open an issue or pull request.
 git clone https://github.com/RichardTheuws/VOX-app.git
 cd VOX-app
 swift build
-swift test  # 128 tests should pass
+swift test  # 136 tests should pass
 ```
 
 ## License
@@ -333,4 +336,4 @@ MIT License — see [LICENSE](LICENSE)
 Part of the [tools.theuws.com](https://tools.theuws.com) ecosystem.
 
 ---
-Version 1.2.0
+Version 1.3.0

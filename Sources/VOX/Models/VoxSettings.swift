@@ -59,6 +59,10 @@ final class VoxSettings: ObservableObject {
     @AppStorage("maxOutputCapture") var maxOutputCapture = 10000
     @AppStorage("logToFile") var logToFile = false
 
+    // MARK: - Auto-Monitor
+
+    @AppStorage("monitorKeyboardInput") var monitorKeyboardInput = false
+
     // MARK: - State
 
     @AppStorage("hasCompletedOnboarding") var hasCompletedOnboarding = false

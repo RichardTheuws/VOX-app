@@ -24,6 +24,7 @@ final class AppState: ObservableObject {
 
     private let terminalReader: TerminalReader
     private let responseProcessor: ResponseProcessor
+    let appWatcher: AppWatcher
 
     // MARK: - Windows
 
@@ -43,6 +44,7 @@ final class AppState: ObservableObject {
         self.soundPackManager = SoundPackManager()
         self.soundPackStore = SoundPackStore()
         self.responseProcessor = ResponseProcessor(ollamaService: ollamaService, soundPackManager: soundPackManager)
+        self.appWatcher = AppWatcher(terminalReader: terminalReader, monitorableBundleIDs: Self.monitorableBundleIDs)
 
         // Scan for user-provided custom sound packs
         soundPackManager.scanForPacks()
@@ -72,10 +74,26 @@ final class AppState: ObservableObject {
 
         // Periodically check Hex status
         hexBridge.checkHexStatus()
+
+        // Auto-monitor: watch for keyboard-triggered output (when enabled)
+        if settings.monitorKeyboardInput {
+            startAppWatcher()
+        }
+    }
+
+    /// Start the AppWatcher for auto-monitoring keyboard interactions.
+    private func startAppWatcher() {
+        appWatcher.onNewContent = { [weak self] bundleID, newContent in
+            Task { @MainActor in
+                self?.handleAutoMonitoredOutput(bundleID: bundleID, newContent: newContent)
+            }
+        }
+        appWatcher.start()
     }
 
     func stop() {
         hexBridge.stopMonitoring()
+        appWatcher.stop()
         ttsEngine.stop()
     }
 
@@ -117,6 +135,47 @@ final class AppState: ObservableObject {
             appMode = .idle
         case .idle:
             break
+        }
+    }
+
+    // MARK: - Auto-Monitor Mode
+
+    /// Handle new content detected by AppWatcher (keyboard interactions, no Hex).
+    private func handleAutoMonitoredOutput(bundleID: String, newContent: String) {
+        guard appMode == .idle else { return }  // Don't interfere with Hex monitoring
+        guard !newContent.isEmpty else { return }
+
+        appMode = .monitoring
+
+        let target = TargetApp.allCases.first { $0.bundleIdentifier == bundleID } ?? .terminal
+
+        var command = VoxCommand(
+            transcription: "(keyboard)",
+            resolvedCommand: "(auto-monitor \(target.rawValue))",
+            target: target
+        )
+        command.status = .running
+        command.output = newContent
+        history.add(command)
+
+        Task {
+            let result = ExecutionResult(output: newContent, exitCode: 0, duration: 0, wasTimeout: false)
+            let verbosity = settings.verbosity(for: target)
+            let processed = await responseProcessor.process(result, verbosity: verbosity, command: "(keyboard)", target: target)
+
+            command.status = .success
+            command.summary = processed.spokenText
+            history.update(command)
+
+            if let text = processed.spokenText {
+                ttsEngine.speak(text)
+            } else if let soundName = processed.soundName {
+                ttsEngine.playSystemSound(soundName)
+            } else if let soundURL = processed.customSoundURL {
+                ttsEngine.playCustomSound(at: soundURL)
+            }
+
+            appMode = .idle
         }
     }
 
@@ -192,6 +251,12 @@ final class AppState: ObservableObject {
                 ttsEngine.playSystemSound(soundName)
             } else if let soundURL = processed.customSoundURL {
                 ttsEngine.playCustomSound(at: soundURL)
+            }
+
+            // 5. Update auto-monitor baseline so it doesn't re-trigger on this content
+            if settings.monitorKeyboardInput,
+               let finalContent = await terminalReader.readContent(for: bundleID) {
+                appWatcher.updateBaseline(for: bundleID, content: finalContent)
             }
 
             appMode = .idle

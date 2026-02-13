@@ -10,7 +10,7 @@ struct SettingsView: View {
             GeneralSettingsTab(settings: settings)
                 .tabItem { Label("General", systemImage: "gear") }
 
-            AppsSettingsTab(settings: settings)
+            AppsSettingsTab(settings: settings, soundPackManager: appState.soundPackManager)
                 .tabItem { Label("Apps", systemImage: "app.badge") }
 
             TTSSettingsTab(settings: settings, soundPackManager: appState.soundPackManager, soundPackStore: appState.soundPackStore, ttsEngine: appState.ttsEngine)
@@ -39,6 +39,13 @@ struct GeneralSettingsTab: View {
                 }
             }
 
+            Section("Monitoring") {
+                Toggle("Monitor keyboard input", isOn: $settings.monitorKeyboardInput)
+                Text("When enabled, VOX also monitors app output for keyboard interactions — not just Hex voice commands. Requires restart.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
             Section("Language") {
                 Picker("Input language", selection: $settings.inputLanguage) {
                     ForEach(InputLanguage.allCases, id: \.self) { lang in
@@ -61,6 +68,7 @@ struct GeneralSettingsTab: View {
 
 struct AppsSettingsTab: View {
     @ObservedObject var settings: VoxSettings
+    @ObservedObject var soundPackManager: SoundPackManager
 
     @State private var isAccessibilityGranted = AccessibilityReader.isAccessibilityGranted()
     @State private var permissionCheckTimer: Timer?
@@ -152,12 +160,21 @@ struct AppsSettingsTab: View {
                             Image(systemName: "speaker.wave.1")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
-                            Picker("Sound Pack", selection: soundPackBinding(for: app)) {
+                            Picker("Sound Pack", selection: soundPackChoiceBinding(for: app)) {
+                                // Built-in packs
                                 ForEach(NoticeSoundPack.allCases) { pack in
-                                    Text(pack.label).tag(pack)
+                                    Text(pack.label).tag(SoundPackChoice.builtIn(pack))
+                                }
+                                // Custom packs (if any exist)
+                                if !soundPackManager.customPacks.isEmpty {
+                                    Divider()
+                                    ForEach(soundPackManager.customPacks) { pack in
+                                        Text("\(pack.name) (\(pack.successFiles.count + pack.errorFiles.count) sounds)")
+                                            .tag(SoundPackChoice.custom(pack.name))
+                                    }
                                 }
                             }
-                            .frame(width: 180)
+                            .frame(width: 220)
                         }
                         .padding(.leading, 16)
                     }
@@ -212,10 +229,25 @@ struct AppsSettingsTab: View {
         )
     }
 
-    private func soundPackBinding(for app: TargetApp) -> Binding<NoticeSoundPack> {
+    private func soundPackChoiceBinding(for app: TargetApp) -> Binding<SoundPackChoice> {
         Binding(
-            get: { settings.soundPack(for: app) },
-            set: { settings.setSoundPack($0, for: app) }
+            get: {
+                let customName = settings.customSoundPackName(for: app)
+                if !customName.isEmpty,
+                   soundPackManager.customPacks.contains(where: { $0.name == customName }) {
+                    return .custom(customName)
+                }
+                return .builtIn(settings.soundPack(for: app))
+            },
+            set: { choice in
+                switch choice {
+                case .builtIn(let pack):
+                    settings.setSoundPack(pack, for: app)
+                    settings.setCustomSoundPackName("", for: app)  // Clear custom
+                case .custom(let name):
+                    settings.setCustomSoundPackName(name, for: app)
+                }
+            }
         )
     }
 }
@@ -304,35 +336,32 @@ struct TTSSettingsTab: View {
             }
 
             Section("Notice Sound Pack") {
-                Picker("Built-in Pack", selection: $settings.noticeSoundPack) {
+                Picker("Sound Pack", selection: globalSoundPackChoiceBinding) {
+                    // Built-in packs
                     ForEach(NoticeSoundPack.allCases) { pack in
-                        Text(pack.label).tag(pack)
+                        Text(pack.label).tag(SoundPackChoice.builtIn(pack))
+                    }
+                    // Custom packs (if any exist)
+                    if !soundPackManager.customPacks.isEmpty {
+                        Divider()
+                        ForEach(soundPackManager.customPacks) { pack in
+                            Text("\(pack.name) (\(pack.successFiles.count + pack.errorFiles.count) sounds)")
+                                .tag(SoundPackChoice.custom(pack.name))
+                        }
                     }
                 }
 
-                Text(settings.noticeSoundPack.description)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                // Description for built-in packs
+                if settings.customSoundPackName.isEmpty {
+                    Text(settings.noticeSoundPack.description)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
 
                 Button("Preview") {
                     previewCurrentPack()
                 }
                 .buttonStyle(.bordered)
-
-                if !soundPackManager.customPacks.isEmpty {
-                    Divider()
-
-                    Text("Custom Sound Packs")
-                        .font(.callout.bold())
-
-                    Picker("Custom Pack", selection: $settings.customSoundPackName) {
-                        Text("None (use built-in)").tag("")
-                        ForEach(soundPackManager.customPacks) { pack in
-                            Text("\(pack.name) (\(pack.successFiles.count + pack.errorFiles.count) sounds)")
-                                .tag(pack.name)
-                        }
-                    }
-                }
 
                 Button("Browse & Install Sounds…") {
                     showInstaller = true
@@ -393,6 +422,27 @@ struct TTSSettingsTab: View {
         }
         .formStyle(.grouped)
         .padding()
+    }
+
+    private var globalSoundPackChoiceBinding: Binding<SoundPackChoice> {
+        Binding(
+            get: {
+                if !settings.customSoundPackName.isEmpty,
+                   soundPackManager.customPacks.contains(where: { $0.name == settings.customSoundPackName }) {
+                    return .custom(settings.customSoundPackName)
+                }
+                return .builtIn(settings.noticeSoundPack)
+            },
+            set: { choice in
+                switch choice {
+                case .builtIn(let pack):
+                    settings.noticeSoundPack = pack
+                    settings.customSoundPackName = ""
+                case .custom(let name):
+                    settings.customSoundPackName = name
+                }
+            }
+        )
     }
 
     private func previewCurrentPack() {

@@ -173,3 +173,33 @@ final class VoxCommandTests: XCTestCase {
         XCTAssertTrue(cmd.isError)
     }
 }
+
+// MARK: - SoundPackChoice Tests
+
+final class SoundPackChoiceTests: XCTestCase {
+
+    func testBuiltInLabel() {
+        let choice = SoundPackChoice.builtIn(.warcraft)
+        XCTAssertEqual(choice.label, "WarCraft Peon")
+    }
+
+    func testCustomLabel() {
+        let choice = SoundPackChoice.custom("Beavis & Butthead")
+        XCTAssertEqual(choice.label, "Beavis & Butthead")
+    }
+
+    func testEquatable() {
+        XCTAssertEqual(SoundPackChoice.builtIn(.mario), SoundPackChoice.builtIn(.mario))
+        XCTAssertNotEqual(SoundPackChoice.builtIn(.mario), SoundPackChoice.builtIn(.zelda))
+        XCTAssertEqual(SoundPackChoice.custom("Pack A"), SoundPackChoice.custom("Pack A"))
+        XCTAssertNotEqual(SoundPackChoice.custom("Pack A"), SoundPackChoice.custom("Pack B"))
+        XCTAssertNotEqual(SoundPackChoice.builtIn(.tts), SoundPackChoice.custom("TTS"))
+    }
+
+    func testAllBuiltInLabelsMatch() {
+        for pack in NoticeSoundPack.allCases {
+            let choice = SoundPackChoice.builtIn(pack)
+            XCTAssertEqual(choice.label, pack.label)
+        }
+    }
+}

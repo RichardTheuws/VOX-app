@@ -206,7 +206,7 @@ final class TerminalReader {
 
     /// Bundle IDs that use AppleScript (append-only scrollback).
     /// All other apps use Accessibility API (content changes in-place).
-    private static let terminalBasedBundleIDs: Set<String> = [
+    static let terminalBasedBundleIDs: Set<String> = [
         "com.apple.Terminal",
         "com.googlecode.iterm2"
     ]

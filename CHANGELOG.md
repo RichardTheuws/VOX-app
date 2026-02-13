@@ -5,6 +5,28 @@ All notable changes to VOX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] - 2026-02-13
+
+### Added
+- **Unified Sound Pack Picker**: Per-app sound pack picker (Settings → Apps) now shows BOTH built-in AND custom/downloaded sound packs in a single dropdown. Previously, custom packs were only visible in the TTS tab. New `SoundPackChoice` enum unifies `.builtIn(NoticeSoundPack)` and `.custom(String)` into one selectable type. The TTS tab's global picker is also unified for consistency.
+- **Auto-Monitor Mode**: New "Monitor keyboard input" toggle (Settings → General) enables continuous monitoring of frontmost app output — not just after Hex voice commands. When enabled, VOX detects new content from keyboard interactions (typing in Claude Desktop, running commands in Terminal) and processes it through the same verbosity/TTS pipeline. Uses adaptive polling (3s idle → 0.5s active) with 5s stabilization delay and 100-char minimum change threshold.
+- **AppWatcher service**: New background service that observes `NSWorkspace.didActivateApplicationNotification` for frontmost app changes and polls monitored apps for content changes. Includes conflict prevention with Hex-triggered monitoring via `appMode == .idle` check and baseline synchronization.
+- **8 new tests**: SoundPackChoice tests (4 — built-in label, custom label, equatable, all built-in labels match) and AppWatcher tests (4 — start/stop, updateBaseline, monitorable bundle IDs filter, monitorKeyboardInput default). Total: 136 tests (was 128).
+
+### Changed
+- **SettingsView Apps tab**: `AppsSettingsTab` now receives `soundPackManager` as `@ObservedObject` to display custom packs alongside built-in packs. Picker uses `SoundPackChoice` tags with `soundPackChoiceBinding(for:)` helper.
+- **SettingsView TTS tab**: Replaced two separate pickers (built-in + custom) with single unified picker using `globalSoundPackChoiceBinding`. Cleaner UI, same functionality.
+- **TerminalReader.terminalBasedBundleIDs**: Changed from `private static` to `static` to allow AppWatcher to use it for diff strategy selection.
+
+### Technical
+- `NoticeSoundPack.swift` — Added `SoundPackChoice` enum with `.builtIn`/`.custom` cases and `label` property
+- `VoxSettings.swift` — Added `@AppStorage("monitorKeyboardInput") var monitorKeyboardInput = false`
+- `AppWatcher.swift` — New file: ~193 lines, NSWorkspace observer + adaptive polling loop, baseline management, content extraction with terminal/AX-aware diffing
+- `AppState.swift` — Added `appWatcher` property, `startAppWatcher()`, `handleAutoMonitoredOutput()`, baseline sync after Hex monitoring, updated `start()`/`stop()`
+- `SettingsView.swift` — Unified pickers in Apps + TTS tabs, `soundPackChoiceBinding(for:)`/`globalSoundPackChoiceBinding` helpers, "Monitoring" section in General tab
+- `ModelTests.swift` — 4 new `SoundPackChoiceTests`
+- `AppWatcherTests.swift` — New file: 4 tests for AppWatcher lifecycle and settings
+
 ## [1.2.0] - 2026-02-13
 
 ### Added

@@ -147,3 +147,19 @@ final class SoundPackManager: ObservableObject {
         return files.filter { Self.supportedExtensions.contains($0.pathExtension.lowercased()) }
     }
 }
+
+// MARK: - Unified Sound Pack Choice
+
+/// Unified type for both built-in and custom sound packs.
+/// Used in Pickers so a single dropdown can show all available packs.
+enum SoundPackChoice: Hashable {
+    case builtIn(NoticeSoundPack)
+    case custom(String)  // pack name
+
+    var label: String {
+        switch self {
+        case .builtIn(let pack): return pack.label
+        case .custom(let name): return name
+        }
+    }
+}
