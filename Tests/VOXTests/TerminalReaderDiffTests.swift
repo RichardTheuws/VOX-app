@@ -113,4 +113,94 @@ final class TerminalReaderDiffTests: XCTestCase {
         let result = reader.extractNewContent(before: "", after: "Hello world", isTerminalBased: false)
         XCTAssertTrue(result.contains("Hello world"))
     }
+
+    // MARK: - Adaptive Poll Interval
+
+    func testAdaptivePollIntervalActive() {
+        // Content just changed → fast polling
+        XCTAssertEqual(TerminalReader.adaptivePollInterval(secondsSinceLastChange: 0), 0.5)
+        XCTAssertEqual(TerminalReader.adaptivePollInterval(secondsSinceLastChange: 1.0), 0.5)
+        XCTAssertEqual(TerminalReader.adaptivePollInterval(secondsSinceLastChange: 2.9), 0.5)
+    }
+
+    func testAdaptivePollIntervalFirstPause() {
+        // 3-8 seconds since last change → slow down
+        XCTAssertEqual(TerminalReader.adaptivePollInterval(secondsSinceLastChange: 3.0), 2.0)
+        XCTAssertEqual(TerminalReader.adaptivePollInterval(secondsSinceLastChange: 5.0), 2.0)
+        XCTAssertEqual(TerminalReader.adaptivePollInterval(secondsSinceLastChange: 7.9), 2.0)
+    }
+
+    func testAdaptivePollIntervalLongerPause() {
+        // 8-15 seconds → slower
+        XCTAssertEqual(TerminalReader.adaptivePollInterval(secondsSinceLastChange: 8.0), 5.0)
+        XCTAssertEqual(TerminalReader.adaptivePollInterval(secondsSinceLastChange: 12.0), 5.0)
+        XCTAssertEqual(TerminalReader.adaptivePollInterval(secondsSinceLastChange: 14.9), 5.0)
+    }
+
+    func testAdaptivePollIntervalWaiting() {
+        // 15+ seconds → minimal polling
+        XCTAssertEqual(TerminalReader.adaptivePollInterval(secondsSinceLastChange: 15.0), 10.0)
+        XCTAssertEqual(TerminalReader.adaptivePollInterval(secondsSinceLastChange: 60.0), 10.0)
+        XCTAssertEqual(TerminalReader.adaptivePollInterval(secondsSinceLastChange: 300.0), 10.0)
+    }
+
+    // MARK: - Shell Prompt Detection
+
+    func testShellPromptDetectionBash() {
+        // Bash default prompt: ends with $
+        XCTAssertTrue(reader.endsWithShellPrompt("user@host:~$ "))
+        XCTAssertTrue(reader.endsWithShellPrompt("some output\nuser@macbook:~/project$ "))
+        XCTAssertTrue(reader.endsWithShellPrompt("richardtheuws@MacBook-Air ~ %\nrichardtheuws@MacBook-Air ~ $"))
+    }
+
+    func testShellPromptDetectionZsh() {
+        // Zsh default prompt: ends with %
+        XCTAssertTrue(reader.endsWithShellPrompt("user@host ~ % "))
+        XCTAssertTrue(reader.endsWithShellPrompt("some output\nrichardtheuws@MacBook-Air ~ %"))
+    }
+
+    func testShellPromptDetectionStarship() {
+        // Starship prompt: ends with ❯
+        XCTAssertTrue(reader.endsWithShellPrompt("~/projects/vox\n❯"))
+        XCTAssertTrue(reader.endsWithShellPrompt("some output\n❯ "))
+    }
+
+    func testShellPromptDetectionRoot() {
+        // Root prompt: ends with #
+        XCTAssertTrue(reader.endsWithShellPrompt("root@server:/var/log# "))
+    }
+
+    func testShellPromptDetectionNotPrompt() {
+        // Regular output should NOT be detected as prompt
+        XCTAssertFalse(reader.endsWithShellPrompt("Building project..."))
+        XCTAssertFalse(reader.endsWithShellPrompt("Compiling Swift sources"))
+        XCTAssertFalse(reader.endsWithShellPrompt("100% complete"))
+        XCTAssertFalse(reader.endsWithShellPrompt(""))
+    }
+
+    func testShellPromptDetectionLongLineNotPrompt() {
+        // Very long lines (>200 chars) should not be considered prompts
+        let longLine = String(repeating: "a", count: 250) + " $"
+        XCTAssertFalse(reader.endsWithShellPrompt(longLine))
+    }
+
+    func testShellPromptDetectionMultilineContent() {
+        // Should check only the last non-empty line
+        let content = """
+        $ claude "fix the bug"
+        I'll analyze the code and fix the bug.
+
+        Created file: src/fix.swift
+        Modified file: src/main.swift
+
+        richardtheuws@MacBook-Air ~/Documents/VOX-app %
+        """
+        XCTAssertTrue(reader.endsWithShellPrompt(content))
+    }
+
+    func testShellPromptDetectionTrailingEmptyLines() {
+        // Should skip trailing empty lines and find prompt
+        let content = "some output\nuser@host:~$ \n\n\n"
+        XCTAssertTrue(reader.endsWithShellPrompt(content))
+    }
 }

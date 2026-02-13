@@ -142,11 +142,18 @@ final class AppState: ObservableObject {
             let snapshot = await terminalReader.readContent(for: bundleID) ?? ""
 
             // 2. Wait for new output to appear and stabilize
+            //    Uses adaptive two-phase stabilization:
+            //    - Phase 1: 3s of no changes → move to verification
+            //    - Phase 2: 15s more of stability → confirmed done
+            //    - Shell prompt detection for instant completion
+            //    - Exponential backoff reduces polling from ~8000 to ~500 over 40 min
             let newOutput = await terminalReader.waitForNewOutput(
                 bundleID: bundleID,
                 initialSnapshot: snapshot,
                 timeout: settings.commandTimeout,
-                stabilizeDelay: 1.5
+                initialStabilizeDelay: 3.0,
+                confirmationDelay: 15.0,
+                usePromptDetection: true
             )
 
             guard let output = newOutput, !output.isEmpty else {

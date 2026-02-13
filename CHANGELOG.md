@@ -5,6 +5,26 @@ All notable changes to VOX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-02-13
+
+### Added
+- **Adaptive two-phase stabilization**: Long-running commands (Claude Code sessions of 30-40+ minutes) are now properly monitored until completion. VOX no longer prematurely summarizes output when the AI pauses to think or execute tools.
+  - **Phase 1 (Active)**: Fast polling at 0.5s interval. After 3 seconds of no changes, moves to Phase 2.
+  - **Phase 2 (Verifying)**: Exponential backoff polling (2s → 5s → 10s). After 15 more seconds of stability, confirms the command is truly done. If content changes, resets to Phase 1.
+- **Terminal prompt detection**: Shell prompt patterns (bash `$`, zsh `%`, starship `❯`, root `#`) are detected for instant completion — no 15-second wait needed for short commands.
+- **Exponential backoff polling**: CPU usage reduced from ~8,000 polls to ~500 polls over a 40-minute session. Poll interval adapts: 0.5s (active) → 2s → 5s → 10s (waiting).
+- **12 new tests**: Adaptive poll interval tests (4), shell prompt detection tests (8 — bash, zsh, starship, root, negative cases, multiline, trailing empty lines, long lines). Total: 118 tests (was 106).
+
+### Changed
+- **Command timeout default**: Increased from 30 seconds to 3,600 seconds (1 hour). Long Claude Code sessions now complete naturally instead of timing out.
+- **Stabilization delay**: Increased from 1.5s to 3s initial stabilization + 15s confirmation. Prevents premature "done" detection when AI pauses briefly.
+
+### Technical
+- `TerminalReader.swift` — New `MonitorPhase` enum (`.active`, `.verifying`), `adaptivePollInterval()` static method with 4-tier backoff, `endsWithShellPrompt()` regex-based prompt detection, complete refactor of `waitForNewOutput()` with two-phase algorithm
+- `VoxSettings.swift` — `commandTimeout` default changed from 30 to 3600
+- `AppState.swift` — Updated `monitorTerminalResponse()` call with new parameters: `initialStabilizeDelay: 3.0`, `confirmationDelay: 15.0`, `usePromptDetection: true`
+- `TerminalReaderDiffTests.swift` — 12 new tests for adaptive polling and prompt detection
+
 ## [1.0.2] - 2026-02-13
 
 ### Fixed

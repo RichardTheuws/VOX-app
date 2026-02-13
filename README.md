@@ -44,6 +44,8 @@ For Chromium-based editors (Cursor, VS Code, Windsurf), VOX uses intelligent cha
 ### Core
 - **Terminal monitoring** — Detects new output in Terminal.app and iTerm2 via AppleScript
 - **Editor monitoring** — Reads AI chat responses in Cursor, VS Code, and Windsurf via Accessibility API
+- **Smart long-running task detection** — Two-phase stabilization with adaptive polling handles 30-40+ minute Claude Code sessions without premature summarization
+- **Terminal prompt detection** — Instantly detects when a command finishes by recognizing shell prompts (bash, zsh, starship)
 - **Chat fragment assembly** — Reassembles fragmented Chromium AX text elements into coherent responses
 - **Hex integration** — Watches Hex's `transcription_history.json` for new dictations with source app context
 - **Per-app verbosity** — Configure different verbosity levels per target app
@@ -140,7 +142,7 @@ swift build -c release
 
 ```bash
 swift test
-# 106 tests, 0 failures
+# 118 tests, 0 failures
 ```
 
 ## Verbosity Levels
@@ -279,7 +281,8 @@ No audio data ever leaves your Mac. Hex supports multiple model sizes with diffe
 | v0.8 | Sound Pack Store — search & install game sounds | Done |
 | v0.9 | Edge TTS + ElevenLabs + Accessibility API for editors | Done |
 | v0.10 | Code signing + chat fragment assembly + full response reading | Done |
-| **v1.0** | **Adaptive voices + localized summaries + 106 tests** | **Current** |
+| v1.0 | Adaptive voices + localized summaries + 106 tests | Done |
+| **v1.1** | **Smart long-running task detection + adaptive polling + 118 tests** | **Current** |
 
 ## Tech Stack
 
@@ -293,7 +296,7 @@ No audio data ever leaves your Mac. Hex supports multiple model sizes with diffe
 | Language Detection | Apple NLLanguageRecognizer (NaturalLanguage framework) |
 | AI Summarization | Ollama (local, optional) |
 | Platform | macOS 14+ (Apple Silicon optimized) |
-| Testing | XCTest — 106 unit tests |
+| Testing | XCTest — 118 unit tests |
 | Build | Swift Package Manager |
 
 ## Privacy & Security
@@ -315,7 +318,7 @@ Contributions are welcome! Please open an issue or pull request.
 git clone https://github.com/RichardTheuws/VOX-app.git
 cd VOX-app
 swift build
-swift test  # 106 tests should pass
+swift test  # 118 tests should pass
 ```
 
 ## License
@@ -327,4 +330,4 @@ MIT License — see [LICENSE](LICENSE)
 Part of the [tools.theuws.com](https://tools.theuws.com) ecosystem.
 
 ---
-Version 1.0.2
+Version 1.1.0

@@ -55,7 +55,7 @@ final class VoxSettings: ObservableObject {
     @AppStorage("ollamaURL") var ollamaURL = "http://localhost:11434"
     @AppStorage("ollamaModel") var ollamaModel = "llama3.2:3b"
     @AppStorage("maxSummaryLength") var maxSummaryLength = 2
-    @AppStorage("commandTimeout") var commandTimeout: Double = 30
+    @AppStorage("commandTimeout") var commandTimeout: Double = 3600
     @AppStorage("maxOutputCapture") var maxOutputCapture = 10000
     @AppStorage("logToFile") var logToFile = false
 

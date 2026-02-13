@@ -34,15 +34,33 @@ final class TerminalReader {
         }
     }
 
+    // MARK: - Monitoring Phases
+
+    /// Phases for the adaptive two-phase stabilization algorithm.
+    /// Phase 1 (.active): Fast polling, watching for content changes.
+    /// Phase 2 (.verifying): Slower polling with exponential backoff, confirming completion.
+    enum MonitorPhase {
+        case active     // Content recently changed — poll fast
+        case verifying  // Content stable for initialStabilizeDelay — confirming it's done
+    }
+
     /// Monitor app for new output after a Hex transcription.
     /// Takes an initial snapshot, then polls until output stabilizes.
     /// Returns the NEW output (diff from snapshot).
+    ///
+    /// Uses adaptive two-phase stabilization for long-running tasks (e.g., Claude Code):
+    /// - **Phase 1 (active)**: Fast polling (0.5s). After `initialStabilizeDelay` seconds of
+    ///   no changes, moves to Phase 2. Prompt detection can trigger early exit.
+    /// - **Phase 2 (verifying)**: Exponential backoff polling (2s → 5s → 10s). After
+    ///   `confirmationDelay` more seconds of stability, returns as "confirmed done".
+    ///   If content changes, resets back to Phase 1.
     func waitForNewOutput(
         bundleID: String,
         initialSnapshot: String,
-        timeout: TimeInterval = 30,
-        stabilizeDelay: TimeInterval = 1.5,
-        pollInterval: TimeInterval = 0.3
+        timeout: TimeInterval = 3600,
+        initialStabilizeDelay: TimeInterval = 3.0,
+        confirmationDelay: TimeInterval = 15.0,
+        usePromptDetection: Bool = true
     ) async -> String? {
         let startTime = Date()
         var lastContent = initialSnapshot
@@ -51,16 +69,22 @@ final class TerminalReader {
         var pollCount = 0
         var changeCount = 0
         var nilCount = 0
+        var hasSeenAnyChange = false
+        var phase: MonitorPhase = .active
 
-        AccessibilityReader.debugLog("=== waitForNewOutput START ===")
+        AccessibilityReader.debugLog("=== waitForNewOutput START (adaptive) ===")
         AccessibilityReader.debugLog("  bundleID=\(bundleID) isTerminal=\(isTerminal) timeout=\(timeout)")
+        AccessibilityReader.debugLog("  initialStabilize=\(initialStabilizeDelay)s confirm=\(confirmationDelay)s promptDetect=\(usePromptDetection)")
         AccessibilityReader.debugLog("  snapshot: \(initialSnapshot.count) chars")
 
         // Small initial delay to let the command start producing output
         try? await Task.sleep(for: .milliseconds(500))
 
         while Date().timeIntervalSince(startTime) < timeout {
-            try? await Task.sleep(for: .seconds(pollInterval))
+            // Adaptive poll interval — fast when active, slow when verifying
+            let secondsSinceChange = Date().timeIntervalSince(lastChangeTime)
+            let currentPollInterval = Self.adaptivePollInterval(secondsSinceLastChange: secondsSinceChange)
+            try? await Task.sleep(for: .seconds(currentPollInterval))
             pollCount += 1
 
             guard let content = await readContent(for: bundleID) else {
@@ -70,20 +94,64 @@ final class TerminalReader {
 
             if content != lastContent {
                 changeCount += 1
-                AccessibilityReader.debugLog("  poll[\(pollCount)] CHANGED: \(content.count) chars (was \(lastContent.count))")
+                if phase == .verifying {
+                    AccessibilityReader.debugLog("  poll[\(pollCount)] CHANGED in verification — back to active")
+                } else {
+                    AccessibilityReader.debugLog("  poll[\(pollCount)] CHANGED: \(content.count) chars (was \(lastContent.count))")
+                }
                 lastContent = content
                 lastChangeTime = Date()
+                hasSeenAnyChange = true
+                phase = .active
+                continue
             }
 
-            // Content has stabilized (no changes for stabilizeDelay seconds)
-            if Date().timeIntervalSince(lastChangeTime) >= stabilizeDelay {
-                let newContent = extractNewContent(before: initialSnapshot, after: lastContent, isTerminalBased: isTerminal)
-                if !newContent.isEmpty {
-                    AccessibilityReader.debugLog("  STABILIZED after \(pollCount) polls, \(changeCount) changes, \(nilCount) nils")
-                    AccessibilityReader.debugLog("  diff result: \(newContent.count) chars: \(String(newContent.prefix(120)))")
-                    return newContent
+            let stableFor = Date().timeIntervalSince(lastChangeTime)
+
+            switch phase {
+            case .active:
+                if stableFor >= initialStabilizeDelay {
+                    // Terminal prompt detection: if shell prompt visible, command is done
+                    if usePromptDetection && isTerminal && endsWithShellPrompt(lastContent) {
+                        let newContent = extractNewContent(before: initialSnapshot, after: lastContent, isTerminalBased: isTerminal)
+                        if !newContent.isEmpty {
+                            AccessibilityReader.debugLog("  PROMPT DETECTED after \(pollCount) polls, \(changeCount) changes")
+                            AccessibilityReader.debugLog("  diff result: \(newContent.count) chars: \(String(newContent.prefix(120)))")
+                            return newContent
+                        }
+                    }
+
+                    if !hasSeenAnyChange {
+                        continue  // No output yet — keep waiting
+                    }
+
+                    // Move to verification phase
+                    phase = .verifying
+                    AccessibilityReader.debugLog("  poll[\(pollCount)] → VERIFYING (stable \(String(format: "%.1f", stableFor))s)")
                 }
-                // If no new content after stabilization, keep waiting
+
+            case .verifying:
+                // Terminal prompt detection in verification phase too
+                if usePromptDetection && isTerminal && endsWithShellPrompt(lastContent) {
+                    let newContent = extractNewContent(before: initialSnapshot, after: lastContent, isTerminalBased: isTerminal)
+                    if !newContent.isEmpty {
+                        AccessibilityReader.debugLog("  PROMPT DETECTED (verifying) after \(pollCount) polls, \(changeCount) changes")
+                        AccessibilityReader.debugLog("  diff result: \(newContent.count) chars: \(String(newContent.prefix(120)))")
+                        return newContent
+                    }
+                }
+
+                // Confirmed done: stable for initialStabilizeDelay + confirmationDelay total
+                if stableFor >= initialStabilizeDelay + confirmationDelay {
+                    let newContent = extractNewContent(before: initialSnapshot, after: lastContent, isTerminalBased: isTerminal)
+                    if !newContent.isEmpty {
+                        AccessibilityReader.debugLog("  CONFIRMED DONE after \(pollCount) polls, \(changeCount) changes, \(nilCount) nils (stable \(String(format: "%.1f", stableFor))s)")
+                        AccessibilityReader.debugLog("  diff result: \(newContent.count) chars: \(String(newContent.prefix(120)))")
+                        return newContent
+                    }
+                    // No new content even after full stabilization — keep waiting
+                    // (edge case: content reverted to original)
+                }
             }
         }
 
@@ -93,6 +161,47 @@ final class TerminalReader {
         AccessibilityReader.debugLog("  final diff: \(newContent.count) chars")
         AccessibilityReader.debugLog("=== waitForNewOutput END ===")
         return newContent.isEmpty ? nil : newContent
+    }
+
+    // MARK: - Adaptive Polling
+
+    /// Calculate poll interval based on how long content has been unchanged.
+    /// Fast polling when content is actively changing, exponential backoff when stable.
+    /// This reduces CPU usage from ~8000 polls to ~500 over a 40-minute session.
+    static func adaptivePollInterval(secondsSinceLastChange: TimeInterval) -> TimeInterval {
+        switch secondsSinceLastChange {
+        case ..<3:    return 0.5   // Active: fast polling
+        case 3..<8:   return 2.0   // First pause: slow down
+        case 8..<15:  return 5.0   // Longer pause: slower
+        default:      return 10.0  // Waiting: minimal polling (6/min)
+        }
+    }
+
+    // MARK: - Terminal Prompt Detection
+
+    /// Check if terminal content ends with a shell prompt, indicating the command is done.
+    /// Detects common prompt patterns: bash ($), zsh (%), starship (❯), and others.
+    /// Only useful for Terminal.app/iTerm2 where we read the scrollback buffer.
+    func endsWithShellPrompt(_ content: String) -> Bool {
+        // Find the last non-empty line
+        let lastLine = content.components(separatedBy: .newlines)
+            .last(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) ?? ""
+        let trimmed = lastLine.trimmingCharacters(in: .whitespaces)
+
+        // Empty or very long lines are not prompts
+        guard !trimmed.isEmpty, trimmed.count < 200 else { return false }
+
+        // Common shell prompt patterns:
+        // $ (bash default), % (zsh default), ❯ (starship/custom), # (root)
+        // user@host:~$ , hostname% , ❯ , (venv) user$
+        let promptPatterns = [
+            #"[$%❯›#]\s*$"#,                     // Prompt char at end of line
+            #"\w+@[\w.-]+.*[$%#]\s*$"#,           // user@host$
+        ]
+
+        return promptPatterns.contains { pattern in
+            trimmed.range(of: pattern, options: .regularExpression) != nil
+        }
     }
 
     /// Bundle IDs that use AppleScript (append-only scrollback).
