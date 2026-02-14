@@ -5,6 +5,33 @@ All notable changes to VOX will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.4.0] - 2026-02-14
+
+### Added
+- **Sound Pack Preview Fix**: Preview/play button in Sound Pack Installer now works correctly. Fixed NSSound limitation with remote URLs by downloading MP3 to temp file before playback.
+- **Audio Duration Display**: Search results in Sound Pack Installer now show audio fragment duration (e.g., "0:03") after previewing a sound. Uses AVURLAsset for duration detection.
+- **Installed Sound Pack Manager**: New "Installed Sound Packs" section in Settings → TTS tab. View all custom sound packs with expandable lists of success/error sounds. Each sound shows filename, duration, play button, and delete button. Delete entire packs with confirmation dialog.
+- **`/vox` Claude Code Command**: New slash command to manage VOX settings directly from Claude Code via `defaults read/write com.vox.app`. Supports status, verbosity, soundpack, volume, speed, engine, monitor, restart, and reset commands.
+- **InstalledPackRow.swift**: New view component for installed pack management with DisclosureGroup, SoundFileRow subview with play/delete controls.
+- **8 new tests**: SoundPackStore duration tests (3 — short clip, longer clip, missing file returns nil) and SoundPackManager tests (5 — delete pack, delete sound, random sound, empty pack, choice labels). Total: 144 tests (was 136).
+
+### Changed
+- **SoundPackStore.preview()**: Now downloads remote MP3 to temp file before playing via NSSound. Returns optional local URL for duration extraction.
+- **SoundPackStore.audioDuration(at:)**: New static helper using AVURLAsset. Returns nil for non-existent or zero-length files.
+- **SoundPackStore.formatDuration(_:)**: New static helper formatting seconds as "M:SS" (e.g., "0:03", "1:23").
+- **SoundPackInstallerView**: SoundResultRow now displays duration after preview. Updated previewSound() to capture local URL and compute duration.
+- **SettingsView TTS tab**: Added "Installed Sound Packs" section between "Notice Sound Pack" and "Default Verbosity".
+
+### Technical
+- `SoundPackStore.swift` — Added `import AVFoundation`, rewrote `preview()` with download-first approach, added `audioDuration(at:)` and `formatDuration(_:)` static methods
+- `SoundPackInstallerView.swift` — Added `@State private var duration: String?` to SoundResultRow, updated `previewSound()` to capture duration
+- `NoticeSoundPack.swift` — Added `deletePack(named:)` and `deleteSound(at:fromPack:)` to SoundPackManager
+- `InstalledPackRow.swift` — New file: InstalledPackRow + SoundFileRow views for pack management
+- `SettingsView.swift` — Integrated InstalledPackRow in TTSSettingsTab
+- `~/.claude/commands/vox.md` — New file: /vox slash command definition
+- `SoundPackStoreTests.swift` — 3 new duration tests
+- `SoundPackManagerTests.swift` — New file: 5 tests for delete, model, and choice label logic
+
 ## [1.3.0] - 2026-02-13
 
 ### Added

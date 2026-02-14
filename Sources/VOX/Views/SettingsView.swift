@@ -402,6 +402,22 @@ struct TTSSettingsTab: View {
                 }
             }
 
+            Section("Installed Sound Packs") {
+                if soundPackManager.customPacks.isEmpty {
+                    Text("No custom sound packs installed")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else {
+                    ForEach(soundPackManager.customPacks) { pack in
+                        InstalledPackRow(
+                            pack: pack,
+                            soundPackManager: soundPackManager,
+                            ttsEngine: ttsEngine
+                        )
+                    }
+                }
+            }
+
             Section("Default Verbosity") {
                 Picker("Global default", selection: $settings.defaultVerbosity) {
                     ForEach(VerbosityLevel.allCases) { level in

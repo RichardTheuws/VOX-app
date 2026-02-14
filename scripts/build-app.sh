@@ -57,7 +57,8 @@ cp "$BINARY" "${APP_BUNDLE}/Contents/MacOS/VOX"
 cp "${PROJECT_DIR}/Assets/Info.plist" "${APP_BUNDLE}/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${VERSION}" "${APP_BUNDLE}/Contents/Info.plist"
 
-# Step 6: Copy icon
+# Step 6: Copy icon (strip resource forks from source to prevent codesign failures)
+xattr -c "${PROJECT_DIR}/Assets/AppIcon.icns" 2>/dev/null || true
 cp "${PROJECT_DIR}/Assets/AppIcon.icns" "${APP_BUNDLE}/Contents/Resources/AppIcon.icns"
 
 # Step 7: Create PkgInfo
@@ -71,7 +72,7 @@ if security find-identity -v -p codesigning 2>/dev/null | grep -q "$SIGNING_IDEN
     echo "    Code signing with '${SIGNING_IDENTITY}'..."
     # Strip ALL extended attributes (resource forks, Finder info, quarantine) that break codesign
     xattr -cr "$APP_BUNDLE" 2>/dev/null || true
-    find "$APP_BUNDLE" -exec xattr -c {} \; 2>/dev/null || true
+    find "$APP_BUNDLE" -type f -exec xattr -c {} \; 2>/dev/null || true
     codesign --force --deep --sign "$SIGNING_IDENTITY" \
         --identifier "com.vox.app" \
         "$APP_BUNDLE"

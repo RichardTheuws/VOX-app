@@ -251,6 +251,7 @@ private struct SoundResultRow: View {
     let ttsEngine: TTSEngine
 
     @State private var isPreviewing = false
+    @State private var duration: String?
 
     var body: some View {
         HStack(spacing: 8) {
@@ -267,6 +268,14 @@ private struct SoundResultRow: View {
                 .font(.callout)
                 .lineLimit(1)
                 .truncationMode(.tail)
+
+            // Duration (appears after preview)
+            if let duration {
+                Text(duration)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .monospacedDigit()
+            }
 
             Spacer()
 
@@ -296,7 +305,11 @@ private struct SoundResultRow: View {
     private func previewSound() {
         isPreviewing = true
         Task {
-            await store.preview(result, using: ttsEngine)
+            let localURL = await store.preview(result, using: ttsEngine)
+            // Show duration if we got a local file
+            if let localURL, let secs = SoundPackStore.audioDuration(at: localURL) {
+                duration = SoundPackStore.formatDuration(secs)
+            }
             // Brief delay so the icon animation is visible
             try? await Task.sleep(for: .seconds(0.5))
             isPreviewing = false

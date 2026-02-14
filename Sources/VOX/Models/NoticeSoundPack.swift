@@ -140,6 +140,19 @@ final class SoundPackManager: ObservableObject {
         try fm.createDirectory(at: packDir.appendingPathComponent("error"), withIntermediateDirectories: true)
     }
 
+    /// Delete an entire custom sound pack directory.
+    func deletePack(named name: String) throws {
+        let packDir = Self.soundPacksDirectory.appendingPathComponent(name)
+        try FileManager.default.removeItem(at: packDir)
+        scanForPacks()
+    }
+
+    /// Delete a single sound file from a pack.
+    func deleteSound(at url: URL, fromPack packName: String) throws {
+        try FileManager.default.removeItem(at: url)
+        scanForPacks()  // Refresh to update counts
+    }
+
     private func audioFiles(in directory: URL) -> [URL] {
         guard let files = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) else {
             return []

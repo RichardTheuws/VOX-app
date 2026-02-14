@@ -145,7 +145,7 @@ swift build -c release
 
 ```bash
 swift test
-# 136 tests, 0 failures
+# 144 tests, 0 failures
 ```
 
 ## Verbosity Levels
@@ -288,7 +288,8 @@ No audio data ever leaves your Mac. Hex supports multiple model sizes with diffe
 | v1.0 | Adaptive voices + localized summaries + 106 tests | Done |
 | v1.1 | Smart long-running task detection + adaptive polling + 118 tests | Done |
 | v1.2 | Claude Desktop support + per-app sound packs + 128 tests | Done |
-| **v1.3** | **Unified sound pack picker + auto-monitor mode + 136 tests** | **Current** |
+| v1.3 | Unified sound pack picker + auto-monitor mode + 136 tests | Done |
+| **v1.4** | **Sound pack management + /vox command + 144 tests** | **Current** |
 
 ## Tech Stack
 
@@ -324,7 +325,7 @@ Contributions are welcome! Please open an issue or pull request.
 git clone https://github.com/RichardTheuws/VOX-app.git
 cd VOX-app
 swift build
-swift test  # 136 tests should pass
+swift test  # 144 tests should pass
 ```
 
 ## License
@@ -336,4 +337,4 @@ MIT License — see [LICENSE](LICENSE)
 Part of the [tools.theuws.com](https://tools.theuws.com) ecosystem.
 
 ---
-Version 1.3.0
+Version 1.4.0

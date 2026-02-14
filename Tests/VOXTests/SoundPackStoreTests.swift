@@ -199,4 +199,25 @@ final class SoundPackStoreTests: XCTestCase {
         // MP3 URL may or may not be extracted depending on position matching
         // This test verifies the parsing doesn't crash
     }
+
+    // MARK: - Duration Formatting
+
+    func testFormatDurationShortClip() {
+        XCTAssertEqual(SoundPackStore.formatDuration(3.0), "0:03")
+        XCTAssertEqual(SoundPackStore.formatDuration(0.5), "0:00")
+        XCTAssertEqual(SoundPackStore.formatDuration(59.0), "0:59")
+    }
+
+    func testFormatDurationLongerClip() {
+        XCTAssertEqual(SoundPackStore.formatDuration(60.0), "1:00")
+        XCTAssertEqual(SoundPackStore.formatDuration(83.0), "1:23")
+        XCTAssertEqual(SoundPackStore.formatDuration(125.0), "2:05")
+    }
+
+    func testAudioDurationReturnsNilForMissingFile() {
+        let fakeURL = URL(fileURLWithPath: "/tmp/nonexistent-vox-test.mp3")
+        let duration = SoundPackStore.audioDuration(at: fakeURL)
+        // Non-existent files return 0.0 from AVURLAsset, filtered to nil
+        XCTAssertNil(duration)
+    }
 }

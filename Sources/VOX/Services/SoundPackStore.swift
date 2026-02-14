@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import AVFoundation
 
 /// Search result from an online sound source.
 struct SoundSearchResult: Identifiable {
@@ -198,14 +199,50 @@ final class SoundPackStore: ObservableObject {
 
     // MARK: - Preview
 
-    /// Preview a sound by resolving its URL and playing it.
-    func preview(_ result: SoundSearchResult, using ttsEngine: TTSEngine) async {
+    /// Preview a sound by downloading to a temp file and playing locally.
+    /// NSSound can't play remote URLs, so we download first.
+    /// Returns the local temp URL for duration display.
+    @discardableResult
+    func preview(_ result: SoundSearchResult, using ttsEngine: TTSEngine) async -> URL? {
         do {
             let mp3URL = try await resolveMP3URL(for: result)
-            ttsEngine.playCustomSound(at: mp3URL)
+
+            // Download to temp file — NSSound can't play remote URLs
+            var request = URLRequest(url: mp3URL)
+            request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15", forHTTPHeaderField: "User-Agent")
+            request.setValue("\(Self.baseURL)/", forHTTPHeaderField: "Referer")
+
+            let (tempURL, _) = try await session.download(for: request)
+            let playURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("vox-preview-\(result.slug).mp3")
+
+            // Move to predictable location (cleanup old preview)
+            try? FileManager.default.removeItem(at: playURL)
+            try FileManager.default.moveItem(at: tempURL, to: playURL)
+
+            ttsEngine.playCustomSound(at: playURL)
+            return playURL
         } catch {
             self.error = "Preview failed: \(error.localizedDescription)"
+            return nil
         }
+    }
+
+    // MARK: - Audio Duration
+
+    /// Get audio file duration in seconds (synchronous for UI display).
+    @available(macOS, deprecated: 13.0, message: "Acceptable: short local files only")
+    static func audioDuration(at url: URL) -> TimeInterval? {
+        let asset = AVURLAsset(url: url)
+        let duration = CMTimeGetSeconds(asset.duration)
+        return (duration.isFinite && duration > 0) ? duration : nil
+    }
+
+    /// Format duration as "0:03" or "1:23".
+    static func formatDuration(_ seconds: TimeInterval) -> String {
+        let mins = Int(seconds) / 60
+        let secs = Int(seconds) % 60
+        return "\(mins):\(String(format: "%02d", secs))"
     }
 
     // MARK: - HTML Parsing
